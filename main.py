@@ -17,6 +17,7 @@ DATABASE = 'C:\sqlite3\hydroponicDatabase.db'
 
 frameResult = {}
 instructionPile = {}
+espHasPendingInstructions = []
 #get all sensor information
 @api.route('/all', methods=['GET'])
 def get_all():
@@ -51,7 +52,7 @@ def executeQuery(query):
     connection.commit()
     return queryResult.fetchall()
     connection.close()
-    
+
 # Socket Server
 async def receiver(websocket, path):
     framesReceive = (await websocket.recv())
@@ -73,22 +74,31 @@ def restApiServer():
     if __name__ == '__main__':
         api.run(host="0.0.0.0", port=5154, debug=False)
 
+# send instruction to esp as a response
+def sendInstruction(espid):
+    print("efgh")
+    #instructionPile
+
 def scheduler():
     while(True):
         time.sleep(1);
         ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
         print("current time:-", ct)
         ts = ct.timestamp()
-        allTimestamps = executeQuery("SELECT scheduleTimestamp FROM schedule")
-        print(ts)
-        print(allTimestamps)
-
-        for timestamp in allTimestamps:
-            if (ts > timestamp):
-                print("lel: " + str(instructionPile))
-                print("query: " + str(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]))
-                instructionPile[executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]] = executeQuery("SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]
-                print(instructionPile)
+        if(executeQuery("SELECT MIN(scheduleTimestamp) FROM schedule")[0] == int(ts)):
+            allTimestamps = executeQuery("SELECT scheduleTimestamp FROM schedule")
+            print(ts)
+            print(allTimestamps)
+            for timestamp in allTimestamps:
+                if (int(ts) == timestamp):
+                    print("lel: " + str(instructionPile))
+                    print("query: " + str(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]))
+                    instructionPile[executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]] = executeQuery("SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]
+                    if(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0] not in espHasPendingInstructions):
+                        espHasPendingInstructions.append(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0])
+                    executeQuery("DELETE FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")
+                    print(instructionPile)
+                    print(espHasPendingInstructions)
 
 threadServer = threading.Thread(target=ThreadSocketServer, args=())
 threadServer.start()
