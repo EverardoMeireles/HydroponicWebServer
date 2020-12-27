@@ -36,8 +36,8 @@ def frameBreakdown(frame):
     ESPId = frame[0] + frame[1] + frame[2]
     temperature = frame[3] + frame[4] + frame[5]
     frameResult = {
-        "ESPId": ESPId,
-        "temperature": temperature
+        "ESPId": int(ESPId),
+        "temperature": int(temperature)
     }
     return frameResult
 
@@ -50,14 +50,42 @@ def executeQuery(query):
     return queryResult.fetchall()
     connection.close()
 
+def prepareToSendInstructions(espid):
+    global espHasPendingInstructions
+    global espIdList
+    global instructionList
+    #if there are no instructions for this esp "" will be sent
+    instructionToSend = ""
+    e = int(espid)
+    b = str(int(espid))
+    c = espHasPendingInstructions
+    if(int(espid) in espHasPendingInstructions):
+        e = int(espid)
+        i = 0
+
+        for id in espIdList:
+            if(id == espid):
+                instructionToSend = instructionList[i]
+                espIdList[i] = None
+                instructionList[i] = None
+                break
+            i = i + 1
+
+        if(espIdList.count(espid) == 0):
+            espHasPendingInstructions[espHasPendingInstructions.index(espid)] = None
+
+    return instructionToSend
+
 # Socket Server
 async def receiver(websocket, path):
     framesReceive = (await websocket.recv())
     print(framesReceive)
     global frameResult
     frameResult = frameBreakdown(framesReceive)
-    executeQuery("INSERT INTO temperature (espid, value) VALUES(" + frameResult["ESPId"] + ", " + str(int(frameResult["temperature"])/10) + ");")
-    await websocket.send("pong" + framesReceive)
+    executeQuery("INSERT INTO temperature (espid, value) VALUES(" + str(frameResult["ESPId"]) + ", " + str(int(frameResult["temperature"])/10) + ");")
+    instructionToSend = prepareToSendInstructions(frameResult["ESPId"])
+    #print("FINAL: " + instructionToSend)
+    await websocket.send(instructionToSend)
 
 # Socket Server thread
 def ThreadSocketServer():
