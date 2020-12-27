@@ -85,6 +85,7 @@ async def receiver(websocket, path):
     executeQuery("INSERT INTO temperature (espid, value) VALUES(" + str(frameResult["ESPId"]) + ", " + str(int(frameResult["temperature"])/10) + ");")
     instructionToSend = prepareToSendInstructions(frameResult["ESPId"])
     #print("FINAL: " + instructionToSend)
+
     await websocket.send(instructionToSend)
 
 # Socket Server thread
@@ -106,16 +107,17 @@ def sendInstruction(espid):
 
 def scheduler():
     while(True):
-        time.sleep(1);
         ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
-        print("current time:-", ct)
+        #print("current time:-", ct)
         ts = ct.timestamp()
+        if((ts%1) < 0.97):
+            time.sleep(1)
+        else:
+            time.sleep(1-(ts%1))
+            cycles = cycles + 1
+
         print(ts)
         if(executeQuery("SELECT MIN(scheduleTimestamp) FROM schedule")[0] == int(ts)):
-            #allTimestamps = executeQuery("SELECT scheduleTimestamp FROM schedule")
-            #print(allTimestamps)
-            #for timestamp in allTimestamps:
-            #if (int(ts) == timestamp):
             print("espID: " + str(espIdList))
             print("instructions: " + str(instructionList))
             espIdsForTimestamp = executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
@@ -135,7 +137,6 @@ def scheduler():
                 #instructionPile[executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]] = executeQuery("SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]
                 if(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0] not in espHasPendingInstructions):
                     espHasPendingInstructions.append(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0])
-            print(espHasPendingInstructions)
             executeQuery("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
             print(espIdList)
             print(instructionList)
