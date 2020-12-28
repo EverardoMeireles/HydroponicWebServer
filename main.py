@@ -105,7 +105,17 @@ def sendInstruction(espid):
     print("placeholder")
     #instructionPile
 
+def cutNoneElements(list):
+    tempList = []
+    for element in list:
+        if(element != None):
+            tempList.append(element)
+    return tempList
+
 def scheduler():
+    cycleCounter = 0
+    global instructionList
+    global espIdList
     while(True):
         ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
         #print("current time:-", ct)
@@ -114,7 +124,6 @@ def scheduler():
             time.sleep(1)
         else:
             time.sleep(1-(ts%1))
-            cycles = cycles + 1
 
         print(ts)
         if(executeQuery("SELECT MIN(scheduleTimestamp) FROM schedule")[0] == int(ts)):
@@ -138,9 +147,14 @@ def scheduler():
                 if(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0] not in espHasPendingInstructions):
                     espHasPendingInstructions.append(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0])
             executeQuery("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
-            print(espIdList)
-            print(instructionList)
+            #print(espIdList)
+            #print(instructionList)
 
+        if(cycleCounter == 20):
+            instructionList = cutNoneElements(instructionList)
+            espIdList = cutNoneElements(espIdList)
+            cycleCounter = 0
+        cycleCounter = cycleCounter + 1
 threadServer = threading.Thread(target=ThreadSocketServer, args=())
 threadServer.start()
 
