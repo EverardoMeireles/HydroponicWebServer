@@ -141,12 +141,13 @@ def scheduler():
             else:
                 #print("query: " + str(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]))
                 print(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"))
-                instructionList.append(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0])
-                espIdList.append(executeQuery("SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0])
+                instructionList.append(executeQuery("SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0])
+                espIdList.append(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0])
                 #instructionPile[executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]] = executeQuery("SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]
                 if(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0] not in espHasPendingInstructions):
                     espHasPendingInstructions.append(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0])
-            executeQuery("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
+            if(executeQuery("SELECT to_delete FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0] == "TRUE"):
+                executeQuery("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
             #print(espIdList)
             #print(instructionList)
 
