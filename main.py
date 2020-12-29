@@ -129,8 +129,10 @@ def scheduler():
         if(executeQuery("SELECT MIN(scheduleTimestamp) FROM schedule")[0] == int(ts)):
             print("espID: " + str(espIdList))
             print("instructions: " + str(instructionList))
-            espIdsForTimestamp = executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
-            instructionsForTimestamp = executeQuery("SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";");
+            espIdQuery = "SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
+            instructionQuery = "SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
+            espIdsForTimestamp = executeQuery(espIdQuery)
+            instructionsForTimestamp = executeQuery(instructionQuery);
             if(len(espIdsForTimestamp) > 1):
                 for espId in espIdsForTimestamp:
                     espIdList.append(espId)
@@ -140,12 +142,12 @@ def scheduler():
                     instructionList.append(instruction)
             else:
                 #print("query: " + str(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]))
-                print(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"))
-                instructionList.append(executeQuery("SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0])
-                espIdList.append(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0])
+                print(executeQuery(espIdQuery))
+                instructionList.append(executeQuery(instructionQuery)[0])
+                espIdList.append(executeQuery(espIdQuery)[0])
                 #instructionPile[executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]] = executeQuery("SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]
-                if(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0] not in espHasPendingInstructions):
-                    espHasPendingInstructions.append(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0])
+                if(executeQuery(espIdQuery)[0] not in espHasPendingInstructions):
+                    espHasPendingInstructions.append(executeQuery(espIdQuery)[0])
             if(executeQuery("SELECT to_delete FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")[0] == "TRUE"):
                 executeQuery("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
             #print(espIdList)
