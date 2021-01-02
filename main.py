@@ -75,6 +75,19 @@ def prepareToSendInstructions(espid):
 
     return instructionToSend
 
+# send instruction to esp as a response
+def sendInstruction(espid):
+    print("placeholder")
+    #instructionPile
+
+def cutNoneElements(list):
+    tempList = []
+    for element in list:
+        if(element != None):
+            tempList.append(element)
+
+    return tempList
+
 # Socket Server
 async def receiver(websocket, path):
     framesReceive = (await websocket.recv())
@@ -98,19 +111,6 @@ def ThreadSocketServer():
 def restApiServer():
     if __name__ == '__main__':
         api.run(host="0.0.0.0", port=5154, debug=False)
-
-# send instruction to esp as a response
-def sendInstruction(espid):
-    print("placeholder")
-    #instructionPile
-
-def cutNoneElements(list):
-    tempList = []
-    for element in list:
-        if(element != None):
-            tempList.append(element)
-
-    return tempList
 
 def scheduler():
     cycleCounter = 0
@@ -158,6 +158,7 @@ def scheduler():
             cycleCounter = 0
 
         cycleCounter = cycleCounter + 1
+
 threadServer = threading.Thread(target=ThreadSocketServer, args=())
 threadServer.start()
 
