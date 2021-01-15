@@ -15,7 +15,7 @@ api = Flask(__name__)
 
 DATABASE = 'C:\sqlite3\hydroponicDatabase.db'
 
-frameResult = {}
+framesResult = []
 scheduleList = []
 
 espHasPendingInstructions = []
@@ -28,17 +28,8 @@ def get_all():
     #cursor.execute("INSERT INTO esp3 values(85);")
     #connection.commit()
     #connection.close()
-    print(frameResult)
-    return json.dumps(frameResult)
-
-def frameBreakdown(frame):
-    ESPId = frame[0] + frame[1] + frame[2]
-    temperature = frame[3] + frame[4] + frame[5]
-    frameResult = {
-        "ESPId": int(ESPId),
-        "temperature": int(temperature)
-    }
-    return frameResult
+    print(framesResult)
+    return json.dumps(framesResult)
 
 def executeQuery(query):
     connection = sqlite3.connect("C:\sqlite3\hydroponicDatabase.db")
@@ -48,6 +39,35 @@ def executeQuery(query):
     connection.commit()
     return queryResult.fetchall()
     connection.close()
+
+def cutNoneElements(list):
+    tempList = []
+    for element in list:
+        if(element != None):
+            tempList.append(element)
+
+    return tempList
+
+def frameBreakdown(frame):
+    allFrames = frame.split("&")
+    i = 0
+    for currentFrame in allFrames:
+        ESPId = currentFrame[0] + currentFrame[1] + currentFrame[2]
+        value = currentFrame[3] + currentFrame[4] + currentFrame[5]
+        frameType = currentFrame[6:]
+        dictionary = {
+            'espid' : int(ESPId),
+            'value' : int(value),
+            'frametype' : frameType
+        }
+        framesResult.append(dictionary)
+        i = i + 1
+    return framesResult
+
+def processFrames(Result):
+    print(Result)
+    for frame in Result:
+        executeQuery("INSERT INTO "+frame['frametype'] + " (espid, value, timestamp) VALUES(" + str(frame['espid']) + ", " + str(int(frame['value'])) +", " + str(int(datetime.datetime.now(pytz.timezone('Europe/Berlin')).timestamp()))+  ");")
 
 def prepareToSendInstructions(espid):
     global espHasPendingInstructions
@@ -75,27 +95,15 @@ def prepareToSendInstructions(espid):
 
     return instructionToSend
 
-# send instruction to esp as a response
-def sendInstruction(espid):
-    print("placeholder")
-    #instructionPile
-
-def cutNoneElements(list):
-    tempList = []
-    for element in list:
-        if(element != None):
-            tempList.append(element)
-
-    return tempList
-
 # Socket Server
 async def receiver(websocket, path):
     framesReceive = (await websocket.recv())
     print(framesReceive)
-    global frameResult
-    frameResult = frameBreakdown(framesReceive)
-    executeQuery("INSERT INTO temperature (espid, value) VALUES(" + str(frameResult["ESPId"]) + ", " + str(int(frameResult["temperature"])/10) + ");")
-    instructionToSend = prepareToSendInstructions(frameResult["ESPId"])
+    global framesResult
+    framesResult = frameBreakdown(framesReceive)
+    processFrames(framesResult)
+    instructionToSend = prepareToSendInstructions(framesResult[0]['espid'])
+    framesResult = []
     #print("FINAL: " + instructionToSend)
 
     await websocket.send(instructionToSend)
@@ -103,7 +111,7 @@ async def receiver(websocket, path):
 # Socket Server thread
 def ThreadSocketServer():
     asyncio.set_event_loop(asyncio.new_event_loop())
-    start_server = websockets.serve(receiver, "192.168.2.112", 5153)
+    start_server = websockets.serve(receiver, "192.168.1.58", 5153)
     asyncio.get_event_loop().run_until_complete(start_server)
     asyncio.get_event_loop().run_forever()
     api.run()
