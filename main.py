@@ -6,9 +6,12 @@ import threading
 import time
 import sqlite3
 from flask import Flask, json, render_template, request
-import datetime;
+import datetime
 import pytz
 from schedule import schedule
+from pathfinding import pathfinding
+import builtins
+
 
 framesReceive = []
 api = Flask(__name__)
@@ -17,6 +20,17 @@ DATABASE = 'C:\sqlite3\hydroponicDatabase.db'
 
 framesResult = []
 scheduleList = []
+
+builtins.room_map = [["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z"],
+                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                    ["G", "Z", "Z", "Z", "Z", "Z", "G", "G", "G", "G"],
+                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                    ["Z", "Z", "Z", "Z", "Z", "G", "Z", "Z", "Z", "Z"],
+                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"]]
 
 espHasPendingInstructions = []
 #get all sensor information
@@ -82,16 +96,22 @@ def prepareToSendInstructions(espid):
                 instructionToSend = schedule.instruction
                 scheduleList[i] = None
                 break
-
             i = i + 1
-
         e = 0
         for schedule in scheduleList:
             if(schedule != None and schedule.espid == espid):
                 e = e + 1
-
-        if(e == 0):
+        if e == 0:
             espHasPendingInstructions[espHasPendingInstructions.index(espid)] = None
+    # if the instruction is about moving the crawler, change the contents of the instruction to the directions it should
+    # be moving
+    if "GOTO" in instructionToSend:
+        crawlersDirections = executeQuery("SELECT directions FROM crawlers WHERE status = 'available'")[0]
+        startingPositionX = executeQuery("SELECT restingpositionx FROM crawlers WHERE status = 'available'")[0]
+        startingPositionY = executeQuery("SELECT restingpositiony FROM crawlers WHERE status = 'available'")[0]
+
+        dd = pathfinding({"y": startingPositionY, "x": startingPositionX}, {"y": instructionToSend[7], "x": instructionToSend[5]})
+        dd.aStarStart()
 
     return instructionToSend
 
@@ -104,8 +124,6 @@ async def receiver(websocket, path):
     processFrames(framesResult)
     instructionToSend = prepareToSendInstructions(framesResult[0]['espid'])
     framesResult = []
-    #print("FINAL: " + instructionToSend)
-
     await websocket.send(instructionToSend)
 
 # Socket Server thread
@@ -119,6 +137,15 @@ def ThreadSocketServer():
 def restApiServer():
     if __name__ == '__main__':
         api.run(host="0.0.0.0", port=5154, debug=False)
+
+crawlers = []
+# get list of crawlers from database
+def updateCrawlerList():
+    global crawlers
+    queryResult = executeQuery("SELECT * FROM crawlers")
+    for column in queryResult:
+        crawlers.appe
+
 
 def scheduler():
     cycleCounter = 0
@@ -138,13 +165,12 @@ def scheduler():
             instructionQuery = "SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
             toDeleteQuery = "SELECT to_delete FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
             espIdsForTimestamp = executeQuery(espIdQuery)
-            instructionsForTimestamp = executeQuery(instructionQuery);
+            instructionsForTimestamp = executeQuery(instructionQuery)
             toDeleteForTimestamp = executeQuery(toDeleteQuery)
             if(len(espIdsForTimestamp) > 1):
                 for espId in espIdsForTimestamp:
                     if(espId not in espHasPendingInstructions):
                         espHasPendingInstructions.append(espId)
-
             else:
                 #print("query: " + str(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]))
                 print(executeQuery(espIdQuery))
@@ -175,3 +201,7 @@ apiServer.start()
 
 threadScheduler = threading.Thread(target=scheduler, args=())
 threadScheduler.start()
+
+# temporary, test purposes
+dd = pathfinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
+dd.aStarStart()
