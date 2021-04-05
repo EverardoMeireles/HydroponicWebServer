@@ -1,9 +1,10 @@
 import builtins
 class pathfinding:
     # 2d array where the Gcost, Hcost, Fcost and status will be stored.
-    def __init__(self, room_starting_position, room_destination):
+    def __init__(self, room_starting_position, room_destination, timeStartedMoving):
         self.room_starting_position = room_starting_position
         self.room_destination = room_destination
+        self.timeStartedMoving = timeStartedMoving
         # set starting node to be opened
         self.current_position = room_starting_position
         self.nodeList = []
@@ -11,8 +12,8 @@ class pathfinding:
         self.sortedNodesByWeight = []
         self.finalDirections = []
 
+# compare times and spaces by using timestamp and directions
     def calculatenodeListAndOpen(self, y, x):
-
         try:
             if(builtins.room_map[y][x] != "Z" and builtins.room_map[y][x] != "O"):
                 # problem here with the cost values??? try adding abs() to both sides of the equation

@@ -12,7 +12,6 @@ from schedule import schedule
 from pathfinding import pathfinding
 import builtins
 
-
 framesReceive = []
 api = Flask(__name__)
 
@@ -22,17 +21,19 @@ framesResult = []
 scheduleList = []
 
 builtins.room_map = [["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z"],
-                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
-                    ["G", "Z", "Z", "Z", "Z", "Z", "G", "G", "G", "G"],
-                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
-                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
-                    ["Z", "Z", "Z", "Z", "Z", "G", "Z", "Z", "Z", "Z"],
-                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
-                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
-                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
-                    ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"]]
+                     ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                     ["G", "Z", "Z", "Z", "Z", "Z", "G", "G", "G", "G"],
+                     ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                     ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                     ["Z", "Z", "Z", "Z", "Z", "G", "Z", "Z", "Z", "Z"],
+                     ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                     ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                     ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"],
+                     ["G", "G", "G", "G", "G", "G", "G", "G", "G", "G"]]
 
-espHasPendingInstructions = []
+builtins.crawlersInMotion = []
+
+deviceHasPendingInstructions = []
 #get all sensor information
 @api.route('/all', methods=['GET'])
 def get_all():
@@ -52,7 +53,7 @@ def executeQuery(query):
     queryResult = cursor.execute(query)
     connection.commit()
     return queryResult.fetchall()
-    connection.close()
+    # connection.close()
 
 def cutNoneElements(list):
     tempList = []
@@ -63,66 +64,76 @@ def cutNoneElements(list):
     return tempList
 
 def frameBreakdown(frame):
+    dicctionaryItem = []
     allFrames = frame.split("&")
-    i = 0
     for currentFrame in allFrames:
-        ESPId = currentFrame[0] + currentFrame[1] + currentFrame[2]
-        value = currentFrame[3] + currentFrame[4] + currentFrame[5]
-        frameType = currentFrame[6:]
-        dictionary = {
-            'espid' : int(ESPId),
-            'value' : int(value),
-            'frametype' : frameType
+
+        dicctionaryItem = currentFrame.split("@")
+        frameDictionary = {
+            'device': dicctionaryItem[0],
+            'id': int(dicctionaryItem[1]),
+            'value': dicctionaryItem[2],
+            'frametype': dicctionaryItem[3]
         }
-        framesResult.append(dictionary)
-        i = i + 1
+        framesResult.append(frameDictionary)
     return framesResult
 
+# process temperature and humidity frames
 def processFrames(Result):
-    print(Result)
+    #print(Result)
     for frame in Result:
-        executeQuery("INSERT INTO "+frame['frametype'] + " (espid, value, timestamp) VALUES(" + str(frame['espid']) + ", " + str(int(frame['value'])) +", " + str(int(datetime.datetime.now(pytz.timezone('Europe/Berlin')).timestamp()))+  ");")
+        if frame['frametype'] == "temperature" or frame['frametype'] == "humidity":
+            executeQuery("INSERT INTO " + frame['frametype'] + " (id, value, timestamp) VALUES(" + str(frame['id']) + ", " + str(int(frame['value'])) +", " + str(int(datetime.datetime.now(pytz.timezone('Europe/Berlin')).timestamp()))+  ");")
 
-def prepareToSendInstructions(espid):
-    global espHasPendingInstructions
+        # if frame['frametype'] == "crawlerstart":
+        #     path = pathfinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
+        #     path.aStarStart()
+
+def prepareToSendInstructions(id):
+    global deviceHasPendingInstructions
     global scheduleList
     #if there are no instructions for this esp "" will be sent
     instructionToSend = ""
 
-    if(int(espid) in espHasPendingInstructions):
+    if(int(id) in deviceHasPendingInstructions):
         i = 0
         for schedule in scheduleList:
-            if(schedule.espid == espid):
+            print(schedule)
+            if schedule.id == id:
                 instructionToSend = schedule.instruction
                 scheduleList[i] = None
                 break
             i = i + 1
         e = 0
         for schedule in scheduleList:
-            if(schedule != None and schedule.espid == espid):
+            if(schedule != None and schedule.id == id):
                 e = e + 1
         if e == 0:
-            espHasPendingInstructions[espHasPendingInstructions.index(espid)] = None
-    # if the instruction is about moving the crawler, change the contents of the instruction to the directions it should
+            deviceHasPendingInstructions[deviceHasPendingInstructions.index(id)] = None
+    # if the instruction is about starting the crawler, change the contents of the instruction to the directions it should
     # be moving
-    if "GOTO" in instructionToSend:
-        crawlersDirections = executeQuery("SELECT directions FROM crawlers WHERE status = 'available'")[0]
-        startingPositionX = executeQuery("SELECT restingpositionx FROM crawlers WHERE status = 'available'")[0]
-        startingPositionY = executeQuery("SELECT restingpositiony FROM crawlers WHERE status = 'available'")[0]
+    for instruction in instructionToSend:
+        if "GOTO" in instruction:
+            # get next available crawler's data
+            crawlersDirections = executeQuery("SELECT directions FROM crawlers WHERE status = 'available'")[0]
+            startingPositionX = executeQuery("SELECT restingpositionx FROM crawlers WHERE status = 'available'")[0]
+            startingPositionY = executeQuery("SELECT restingpositiony FROM crawlers WHERE status = 'available'")[0]
+            destinationX = instruction[5]
+            destinationY = instruction[7]
 
-        dd = pathfinding({"y": startingPositionY, "x": startingPositionX}, {"y": instructionToSend[7], "x": instructionToSend[5]})
-        dd.aStarStart()
+            dd = pathfinding({"y": startingPositionY, "x": startingPositionX}, {"y": destinationY, "x": destinationX}, schedule.timestamp)
+            dd.aStarStart()
 
     return instructionToSend
 
 # Socket Server
 async def receiver(websocket, path):
     framesReceive = (await websocket.recv())
-    print(framesReceive)
+    #print(framesReceive)
     global framesResult
     framesResult = frameBreakdown(framesReceive)
     processFrames(framesResult)
-    instructionToSend = prepareToSendInstructions(framesResult[0]['espid'])
+    instructionToSend = prepareToSendInstructions(framesResult[0]['id'])
     framesResult = []
     await websocket.send(instructionToSend)
 
@@ -138,13 +149,13 @@ def restApiServer():
     if __name__ == '__main__':
         api.run(host="0.0.0.0", port=5154, debug=False)
 
-crawlers = []
-# get list of crawlers from database
-def updateCrawlerList():
-    global crawlers
-    queryResult = executeQuery("SELECT * FROM crawlers")
-    for column in queryResult:
-        crawlers.appe
+# crawlers = []
+# # get list of crawlers from database
+# def updateCrawlerList():
+#     global crawlers
+#     queryResult = executeQuery("SELECT * FROM crawlers")
+#     for column in queryResult:
+#         crawlers.appe
 
 
 def scheduler():
@@ -154,6 +165,7 @@ def scheduler():
         ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
         #print("current time:-", ct)
         ts = ct.timestamp()
+        # prevents timestamp from skipping a second due cpu delay
         if((ts%1) < 0.97):
             time.sleep(1)
         else:
@@ -161,32 +173,36 @@ def scheduler():
 
         print(ts)
         if(executeQuery("SELECT MIN(scheduleTimestamp) FROM schedule")[0] == int(ts)):
-            espIdQuery = "SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
+            idQuery = "SELECT id FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
             instructionQuery = "SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
             toDeleteQuery = "SELECT to_delete FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
-            espIdsForTimestamp = executeQuery(espIdQuery)
+            typeQuery = "SELECT type FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
+            idsForTimestamp = executeQuery(idQuery)
             instructionsForTimestamp = executeQuery(instructionQuery)
             toDeleteForTimestamp = executeQuery(toDeleteQuery)
-            if(len(espIdsForTimestamp) > 1):
-                for espId in espIdsForTimestamp:
-                    if(espId not in espHasPendingInstructions):
-                        espHasPendingInstructions.append(espId)
+            typeForTimestamp = executeQuery(typeQuery)
+            if(len(idsForTimestamp) > 1):
+                for id in idsForTimestamp:
+                    if(id not in deviceHasPendingInstructions):
+                        deviceHasPendingInstructions.append(id)
             else:
                 #print("query: " + str(executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]))
-                print(executeQuery(espIdQuery))
+                print(executeQuery(idQuery))
                 #instructionPile[executeQuery("SELECT espid FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]] = executeQuery("SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(timestamp) + ";")[0]
-                if(executeQuery(espIdQuery)[0] not in espHasPendingInstructions):
-                    espHasPendingInstructions.append(executeQuery(espIdQuery)[0])
+                if(executeQuery(idQuery)[0] not in deviceHasPendingInstructions):
+                    deviceHasPendingInstructions.append(executeQuery(idQuery)[0])
 
             if(executeQuery(toDeleteQuery)[0] == "TRUE"):
                 executeQuery("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
 
             i = 0
-            while (i < len(espIdsForTimestamp)):
-                print(espIdsForTimestamp)
-                scheduleList.append(schedule(espIdsForTimestamp[i], instructionsForTimestamp[i], toDeleteForTimestamp[i]))
+            while (i < len(idsForTimestamp)):
+                print('lololol')
+                print(idsForTimestamp)
+                scheduleList.append(schedule(idsForTimestamp[i], instructionsForTimestamp[i], toDeleteForTimestamp[i], typeForTimestamp[i], int(ts)))
                 i = i + 1
 
+        # cut 'none' elements after 10 cycles
         if(cycleCounter == 20):
             scheduleList = cutNoneElements(scheduleList)
             cycleCounter = 0
@@ -203,5 +219,5 @@ threadScheduler = threading.Thread(target=scheduler, args=())
 threadScheduler.start()
 
 # temporary, test purposes
-dd = pathfinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
-dd.aStarStart()
+# dd = pathfinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
+# dd.aStarStart()
