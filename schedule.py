@@ -1,4 +1,4 @@
-class schedule:
+class Schedule:
     def __init__(self, id, instruction, to_delete, type, timestamp):
         self.id = id
         self.instruction = instruction
