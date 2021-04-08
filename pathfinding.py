@@ -17,24 +17,19 @@ class PathFinding:
     def return_direction_values(self, direction_key):
         directions_dict = {
             0: {"y": 0, "x": -1},
-            1: {"y": -1, "x": -1},
-            2: {"y": -1, "x": 0},
-            3: {"y": -1, "x": 1},
-            4: {"y": 0, "x": 1},
-            5: {"y": 1, "x": 1},
-            6: {"y": 1, "x": 0},
-            7: {"y": 1, "x": -1}
+            1: {"y": -1, "x": 0},
+            2: {"y": 0, "x": 1},
+            3: {"y": 1, "x": 0},
         }
         return directions_dict[direction_key]
 
     def open_surrounding_nodes(self):
-        for direction_key in range(8):
+        for direction_key in range(4):
             direction = self.return_direction_values(direction_key)
             y_difference = self.current_position["y"] + direction["y"]
             x_difference = self.current_position["x"] + direction["x"]
             if y_difference >= 0 and x_difference >= 0:
                 self.calculate_node_list_and_open(y_difference, x_difference)
-
 
     def calculate_node_list_and_open(self, y, x):
         try:
@@ -88,7 +83,7 @@ class PathFinding:
     def apply_weights(self):
         for node in self.closed_nodes:
             new_weight = 0
-            for direction_key in range(8):
+            for direction_key in range(4):
                 direction = self.return_direction_values(direction_key)
                 temp_y = node["y"] + direction["y"]
                 temp_x = node["x"] + direction["x"]
@@ -103,7 +98,7 @@ class PathFinding:
         next_node = self.closed_nodes[0]
         for node in self.closed_nodes:
             if node == next_node:
-                for direction_key in range(8):
+                for direction_key in range(4):
                     direction = self.return_direction_values(direction_key)
                     temp_y = node["y"] + direction["y"]
                     temp_x = node["x"] + direction["x"]
@@ -139,43 +134,20 @@ class PathFinding:
                                             "x": self.room_starting_position["x"]})
 
     def determine_raw_directions(self):
-        # Replace diagonal movement with 4-direction movement(for example left-down becomes (left, down) or (down-left)
-        def replace_diagonal_directions(node, direction):
-            directions_conversion_dict = {
-                "left": {"y": 0, "x": -1},
-                "right": {"y": 0, "x": 1},
-            }
-            directions_list = direction.split("-")
-            direction_compare = directions_conversion_dict[directions_list[0]]
-            if builtins.room_map[(node["y"] + direction_compare["y"])][(node["x"] + direction_compare["x"])] != "Z":
-                new_direction = directions_list[0], directions_list[1]
-            else:
-                new_direction = directions_list[1], directions_list[0]
-
-            return new_direction
-
         directions_dict = {
             (0, -1): "left",
-            (-1, -1): "left-up",
             (-1, 0): "up",
-            (-1, 1): "right-up",
             (0, 1): "right",
-            (1, 1): "right-down",
-            (1, 0): "down",
-            (1, -1): "left-down"
+            (1, 0): "down"
         }
+
         previous_node = {}
         raw_directions = []
         for current_node in self.sorted_nodes_by_weight:
             if current_node != self.sorted_nodes_by_weight[0]:
                 dictionary_direction_value = directions_dict[
                     (current_node['y'] - previous_node["y"], current_node["x"] - previous_node["x"])]
-                if "-" in dictionary_direction_value:
-                    dictionary_direction_value = replace_diagonal_directions(previous_node, dictionary_direction_value)
-                    raw_directions.append(dictionary_direction_value[0])
-                    raw_directions.append(dictionary_direction_value[1])
-                else:
-                    raw_directions.append(dictionary_direction_value)
+                raw_directions.append(dictionary_direction_value)
             previous_node = current_node
         return raw_directions
 
