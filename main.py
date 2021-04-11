@@ -37,12 +37,6 @@ device_has_pending_instructions = []
 @api.route('/all', methods=['GET'])
 # get all sensor information
 def get_all():
-    # all = [{"temperature": 1, "name": "Company One"}, {"id": 2, "name": "Company Two"}]
-    # connection = sqlite3.connect("C:\sqlite3\hydroponicDatabase.db")
-    # cursor = connection.cursor()
-    # cursor.execute("INSERT INTO esp3 values(85);")
-    # connection.commit()
-    # connection.close()
     print(frames_result)
     return json.dumps(frames_result)
 
@@ -86,7 +80,7 @@ def frame_breakdown(frame):
 def process_frames(result):
     for frame in result:
         if frame['frametype'] == "temperature" or frame['frametype'] == "humidity":
-            execute_query("INSERT INTO " + frame['frametype'] + " (id, value, timestamp) VALUES(" + str(frame['serialnumber'])
+            execute_query("INSERT INTO " + frame['frametype'] + " (serial_number, value, timestamp) VALUES(" + str(frame['serialnumber'])
                           + ", " + str(int(frame['value'])) + ", "
                           + str(int(datetime.datetime.now(pytz.timezone('Europe/Berlin')).timestamp())) + ");")
 
@@ -95,25 +89,25 @@ def process_frames(result):
         #     path.a_star_start()
 
 
-def prepare_to_send_instructions(id):
+def prepare_to_send_instructions(serial_number):
     global device_has_pending_instructions
     global schedule_list
     # if there are no instructions for this esp "" will be sent
     instruction_to_send = ""
-    if int(id) in device_has_pending_instructions:
+    if int(serial_number) in device_has_pending_instructions:
         counter = 0
         for schedule in schedule_list:
-            if schedule.serial_number == id:
+            if schedule.serial_number == serial_number:
                 instruction_to_send = schedule.instruction
                 schedule_list.pop(counter)
                 break
             counter = counter + 1
         schedules_counter = 0
         for schedule in schedule_list:
-            if schedule is not None and schedule.serial_number == id:
+            if schedule is not None and schedule.serial_number == serial_number:
                 schedules_counter = schedules_counter + 1
         if schedules_counter == 0:
-            device_has_pending_instructions[device_has_pending_instructions.index(id)] = None
+            device_has_pending_instructions[device_has_pending_instructions.index(serial_number)] = None
 
     # if the instruction is about starting the crawler, change the contents of the instruction to the directions
     # it should be moving
