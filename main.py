@@ -48,12 +48,23 @@ def get_all():
 
 
 def execute_query(query):
+    def dict_factory(cursor, row):
+        d = {}
+        for idx, col in enumerate(cursor.description):
+            d[col[0]] = row[idx]
+        return d
+
     connection = sqlite3.connect("C:\sqlite3\hydroponicDatabase.db")
-    connection.row_factory = lambda cursor, row: row[0]
+    #connection.row_factory = lambda cursor, row: row[0]
+    connection.row_factory = dict_factory
     cursor = connection.cursor()
     query_result = cursor.execute(query)
-    connection.commit()
-    return query_result.fetchall()
+    list_of_results = query_result.fetchall()
+    #print(list_of_results)
+    if not list_of_results:
+        connection.commit()
+    else:
+        return list_of_results
     # connection.close()
 
 
@@ -175,34 +186,30 @@ def scheduler():
             time.sleep(1 - (ts % 1))
 
         print(ts)
-        if execute_query("SELECT MIN(scheduleTimestamp) FROM schedule")[0] == int(ts):
-            serial_numbers_query = "SELECT serialnumber FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
-            instruction_query = "SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
-            to_delete_query = "SELECT to_delete FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
-            type_query = "SELECT type FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
-            serial_numbers_for_timestamp = execute_query(serial_numbers_query)
-            instructions_for_timestamp = execute_query(instruction_query)
-            to_delete_for_timestamp = execute_query(to_delete_query)
-            type_for_timestamp = execute_query(type_query)
-            if len(serial_numbers_for_timestamp) > 1:
-                for id in serial_numbers_for_timestamp:
-                    if id not in device_has_pending_instructions:
-                        device_has_pending_instructions.append(id)
-            else:
-                if execute_query(serial_numbers_query)[0] not in device_has_pending_instructions:
-                    device_has_pending_instructions.append(execute_query(serial_numbers_query)[0])
+        if execute_query("SELECT MIN(scheduleTimestamp) FROM schedule")[0]['MIN(scheduleTimestamp)'] == int(ts):
+            results = execute_query("SELECT serialnumber, instruction, to_delete, type, scheduleid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
 
-            if execute_query(to_delete_query)[0] == "TRUE":
-                execute_query("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
+            # optimizable?
+            if len(results) > 1:
+                for result in results:
+                    if result['serialnumber'] not in device_has_pending_instructions:
+                        device_has_pending_instructions.append(result['serialnumber'])
+            else:
+                if results[0]['serialnumber'] not in device_has_pending_instructions:
+                    device_has_pending_instructions.append(results[0]['serialnumber'])
 
             counter = 0
-            while counter < len(serial_numbers_for_timestamp):
-                schedule_list.append(Schedule(serial_numbers_for_timestamp[counter],
-                                              instructions_for_timestamp[counter],
-                                              to_delete_for_timestamp[counter],
-                                              type_for_timestamp[counter],
+            while counter < len(results):
+                schedule_list.append(Schedule(results[counter]['serialnumber'],
+                                              results[counter]['instruction'],
+                                              results[counter]['to_delete'],
+                                              results[counter]['type'],
                                               int(ts)))
                 counter = counter + 1
+
+            for result in results:
+                if result['to_delete'] == 'TRUE':
+                    execute_query("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + " AND scheduleid = " + str(result['scheduleId']) + ";")
 
         # cut 'none' elements after 10 cycles
         if cycle_counter == 20:
