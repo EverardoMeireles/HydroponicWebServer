@@ -19,7 +19,7 @@ class PathFinding:
             0: {"y": 0, "x": -1},
             1: {"y": -1, "x": 0},
             2: {"y": 0, "x": 1},
-            3: {"y": 1, "x": 0},
+            3: {"y": 1, "x": 0}
         }
         return directions_dict[direction_key]
 

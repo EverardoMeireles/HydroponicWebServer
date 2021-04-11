@@ -63,7 +63,7 @@ def frame_breakdown(frame):
         dictionary_item = current_frame.split("@")
         frame_dictionary = {
             'device': dictionary_item[0],
-            'id': int(dictionary_item[1]),
+            'serialnumber': int(dictionary_item[1]),
             'value': dictionary_item[2],
             'frametype': dictionary_item[3]
         }
@@ -75,7 +75,7 @@ def frame_breakdown(frame):
 def process_frames(result):
     for frame in result:
         if frame['frametype'] == "temperature" or frame['frametype'] == "humidity":
-            execute_query("INSERT INTO " + frame['frametype'] + " (id, value, timestamp) VALUES(" + str(frame['id'])
+            execute_query("INSERT INTO " + frame['frametype'] + " (id, value, timestamp) VALUES(" + str(frame['serialnumber'])
                           + ", " + str(int(frame['value'])) + ", "
                           + str(int(datetime.datetime.now(pytz.timezone('Europe/Berlin')).timestamp())) + ");")
 
@@ -89,28 +89,27 @@ def prepare_to_send_instructions(id):
     global schedule_list
     # if there are no instructions for this esp "" will be sent
     instruction_to_send = ""
-
     if int(id) in device_has_pending_instructions:
-        i = 0
+        counter = 0
         for schedule in schedule_list:
-            print(schedule)
-            if schedule.id == id:
+            if schedule.serial_number == id:
                 instruction_to_send = schedule.instruction
-                schedule_list[i] = None
+                schedule_list.pop(counter)
                 break
-            i = i + 1
-        e = 0
+            counter = counter + 1
+        schedules_counter = 0
         for schedule in schedule_list:
-            if schedule is not None and schedule.id == id:
-                e = e + 1
-        if e == 0:
+            if schedule is not None and schedule.serial_number == id:
+                schedules_counter = schedules_counter + 1
+        if schedules_counter == 0:
             device_has_pending_instructions[device_has_pending_instructions.index(id)] = None
+
     # if the instruction is about starting the crawler, change the contents of the instruction to the directions
     # it should be moving
     for instruction in instruction_to_send:
         if "GOTO" in instruction:
-            # get next available crawler's data
-            crawlers_directions = execute_query("SELECT directions FROM crawlers WHERE status = 'available'")[0]
+            # get first available crawler's data
+            crawler_serial_number = execute_query("SELECT serialnumber FROM crawlers WHERE status = 'available'")[0]
             starting_position_x = execute_query("SELECT restingpositionx FROM crawlers WHERE status = 'available'")[0]
             starting_position_y = execute_query("SELECT restingpositiony FROM crawlers WHERE status = 'available'")[0]
             destination_x = instruction[5]
@@ -120,6 +119,12 @@ def prepare_to_send_instructions(id):
                                {"y": destination_y, "x": destination_x},
                                schedule.timestamp)
             path.a_star_start()
+            crawler_directions = path.final_directions
+            execute_query("UPDATE crawlers SET status = moving, directions = " + crawler_directions + ", timestamp =" +
+                          path.time_started_moving + " ... WHERE serialnumber = " + crawler_serial_number + ";")
+
+            instruction_to_send = "PATH:" + path.final_directions
+            print(instruction)
 
     return instruction_to_send
 
@@ -130,7 +135,7 @@ async def receiver(websocket, path):
     global frames_result
     frames_result = frame_breakdown(frames_receive)
     process_frames(frames_result)
-    instruction_to_send = prepare_to_send_instructions(frames_result[0]['id'])
+    instruction_to_send = prepare_to_send_instructions(frames_result[0]['serialnumber'])
     frames_result = []
     await websocket.send(instruction_to_send)
 
@@ -171,35 +176,33 @@ def scheduler():
 
         print(ts)
         if execute_query("SELECT MIN(scheduleTimestamp) FROM schedule")[0] == int(ts):
-            id_query = "SELECT id FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
+            serial_numbers_query = "SELECT serialnumber FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
             instruction_query = "SELECT instruction FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
             to_delete_query = "SELECT to_delete FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
             type_query = "SELECT type FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";"
-            ids_for_timestamp = execute_query(id_query)
+            serial_numbers_for_timestamp = execute_query(serial_numbers_query)
             instructions_for_timestamp = execute_query(instruction_query)
             to_delete_for_timestamp = execute_query(to_delete_query)
             type_for_timestamp = execute_query(type_query)
-            if len(ids_for_timestamp) > 1:
-                for id in ids_for_timestamp:
+            if len(serial_numbers_for_timestamp) > 1:
+                for id in serial_numbers_for_timestamp:
                     if id not in device_has_pending_instructions:
                         device_has_pending_instructions.append(id)
             else:
-                print(execute_query(id_query))
-                if execute_query(id_query)[0] not in device_has_pending_instructions:
-                    device_has_pending_instructions.append(execute_query(id_query)[0])
+                if execute_query(serial_numbers_query)[0] not in device_has_pending_instructions:
+                    device_has_pending_instructions.append(execute_query(serial_numbers_query)[0])
 
             if execute_query(to_delete_query)[0] == "TRUE":
                 execute_query("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
 
-            i = 0
-            while i < len(ids_for_timestamp):
-                print(ids_for_timestamp)
-                schedule_list.append(Schedule(ids_for_timestamp[i],
-                                              instructions_for_timestamp[i],
-                                              to_delete_for_timestamp[i],
-                                              type_for_timestamp[i],
+            counter = 0
+            while counter < len(serial_numbers_for_timestamp):
+                schedule_list.append(Schedule(serial_numbers_for_timestamp[counter],
+                                              instructions_for_timestamp[counter],
+                                              to_delete_for_timestamp[counter],
+                                              type_for_timestamp[counter],
                                               int(ts)))
-                i = i + 1
+                counter = counter + 1
 
         # cut 'none' elements after 10 cycles
         if cycle_counter == 20:
@@ -228,5 +231,5 @@ thread_scheduler = threading.Thread(target=scheduler, args=())
 thread_scheduler.start()
 
 # temporary, test purposes
-dd = PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1}, 1617633825)
-dd.a_star_start()
+# dd = PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1}, 1617633825)
+# dd.a_star_start()
