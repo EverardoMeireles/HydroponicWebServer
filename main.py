@@ -40,6 +40,7 @@ if start_with_profiler == True:
     pid = os.getpid()
     os.system("profiler.bat " + str(pid))
 
+
 @api.route('/all', methods=['GET'])
 # get all sensor information
 def get_all():
@@ -88,10 +89,6 @@ def process_frames(result):
                           + ", " + str(int(frame['value'])) + ", "
                           + str(int(datetime.datetime.now(pytz.timezone('Europe/Berlin')).timestamp())) + ");")
 
-        # if frame['frametype'] == "crawlerstart":
-        #     path = pathfinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
-        #     path.a_star_start()
-
 
 def prepare_to_send_instructions(serial_number):
     global device_has_pending_instructions
@@ -105,11 +102,11 @@ def prepare_to_send_instructions(serial_number):
                 instruction_to_send = schedule.instruction
                 schedule_list.pop(counter)
                 break
-            counter = counter + 1
+            counter += 1
         schedules_counter = 0
         for schedule in schedule_list:
             if schedule is not None and schedule.serial_number == serial_number:
-                schedules_counter = schedules_counter + 1
+                schedules_counter += 1
         if schedules_counter == 0:
             device_has_pending_instructions[device_has_pending_instructions.index(serial_number)] = None
 
@@ -202,7 +199,7 @@ def scheduler():
                                               results[counter]['to_delete'],
                                               results[counter]['type'],
                                               int(ts)))
-                counter = counter + 1
+                counter += 1
 
             for result in results:
                 if result['to_delete'] == 'TRUE':

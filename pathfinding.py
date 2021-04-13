@@ -73,7 +73,7 @@ class PathFinding:
                     lowest_h_cost = node["h_cost"]
                     node_to_close = i
                     node_to_add = node
-            i = i + 1
+            i += 1
 
         self.current_position = {"y": node_to_add["y"], "x": node_to_add["x"]}
         self.closed_nodes.append(node_to_add)
