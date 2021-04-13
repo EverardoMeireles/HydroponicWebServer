@@ -49,16 +49,15 @@ def execute_query(query):
         return d
 
     connection = sqlite3.connect("C:\sqlite3\hydroponicDatabase.db")
-    #connection.row_factory = lambda cursor, row: row[0]
     connection.row_factory = dict_factory
     cursor = connection.cursor()
     query_result = cursor.execute(query)
     list_of_results = query_result.fetchall()
-    #print(list_of_results)
     if not list_of_results:
         connection.commit()
     else:
         return list_of_results
+
     # connection.close()
 
 
@@ -168,7 +167,6 @@ def rest_api_server():
 
 
 def scheduler():
-    cycle_counter = 0
     global schedule_list
     while True:
         ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
@@ -179,6 +177,7 @@ def scheduler():
         else:
             time.sleep(1 - (ts % 1))
 
+        print(execute_query("SELECT MIN(scheduleTimestamp) FROM schedule"))
         print(ts)
         if execute_query("SELECT MIN(scheduleTimestamp) FROM schedule")[0]['MIN(scheduleTimestamp)'] == int(ts):
             results = execute_query("SELECT serialnumber, instruction, to_delete, type, scheduleid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
@@ -205,22 +204,6 @@ def scheduler():
                 if result['to_delete'] == 'TRUE':
                     execute_query("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + " AND scheduleid = " + str(result['scheduleId']) + ";")
 
-        # cut 'none' elements after 10 cycles
-        if cycle_counter == 20:
-            schedule_list = cut_none_elements(schedule_list)
-            cycle_counter = 0
-
-        cycle_counter = cycle_counter + 1
-
-
-def cut_none_elements(original_list):
-    temp_list = []
-    for element in original_list:
-        if element is not None:
-            temp_list.append(element)
-
-    return temp_list
-
 
 thread_server = threading.Thread(target=thread_socket_server, args=())
 thread_server.start()
@@ -232,5 +215,5 @@ thread_scheduler = threading.Thread(target=scheduler, args=())
 thread_scheduler.start()
 
 # temporary, test purposes
-# dd = PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1}, 1617633825)
+dd = PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1}, 1617633825)
 # dd.a_star_start()
