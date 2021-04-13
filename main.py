@@ -11,6 +11,7 @@ import pytz
 from schedule import Schedule
 from pathfinding import PathFinding
 import builtins
+import os
 
 # frames_receive = []
 api = Flask(__name__)
@@ -33,6 +34,11 @@ builtins.room_map = [["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z"],
 
 device_has_pending_instructions = []
 
+start_with_profiler = True
+
+if start_with_profiler == True:
+    pid = os.getpid()
+    os.system("profiler.bat " + str(pid))
 
 @api.route('/all', methods=['GET'])
 # get all sensor information
@@ -57,7 +63,6 @@ def execute_query(query):
         connection.commit()
     else:
         return list_of_results
-
     # connection.close()
 
 
@@ -129,7 +134,6 @@ def prepare_to_send_instructions(serial_number):
 
             instruction_to_send = "PATH:" + path.final_directions
             print(instruction)
-
     return instruction_to_send
 
 
