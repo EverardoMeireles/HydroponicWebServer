@@ -95,16 +95,6 @@ def frame_breakdown(frame):
     return frames_result
 
 
-# process temperature and humidity frames
-def log_into_database(result):
-    for frame in result:
-        if frame['frame_type'] == "temperature" or frame['frame_type'] == "humidity":
-            execute_query("INSERT INTO " + frame['frame_type'] + " (serial_number, value, timestamp) "
-                                                                "VALUES(" + str(frame['serial_number'])
-                          + ", " + str(int(frame['value'])) + ", "
-                          + str(int(datetime.datetime.now(pytz.timezone('Europe/Berlin')).timestamp())) + ");")
-
-
 def prepare_to_send_instructions(serial_number):
     global device_has_pending_instructions
     global schedule_list
@@ -149,12 +139,29 @@ def prepare_to_send_instructions(serial_number):
     return instruction_to_send
 
 
+def apply_frame_processing_type(result):
+    for frame in result:
+        # log into database(sensor data)
+        if frame['frame_type'] in ["temperature", "humidity"]:
+            log_into_database(frame)
+
+        # elif frame['frame_type'] == "move_crawler":
+
+
+# process temperature and humidity frames
+def log_into_database(frame):
+    execute_query("INSERT INTO " + frame['frame_type'] + " (serial_number, value, timestamp) "
+                                                         "VALUES(" + str(frame['serial_number'])
+                  + ", " + str(int(frame['value'])) + ", "
+                  + str(int(datetime.datetime.now(pytz.timezone('Europe/Berlin')).timestamp())) + ");")
+
+
 # Socket Server
 async def receiver(websocket, path):
     frames_receive = (await websocket.recv())
     global frames_result
     frames_result = frame_breakdown(frames_receive)
-    log_into_database(frames_result)
+    apply_frame_processing_type(frames_result)
     instruction_to_send = prepare_to_send_instructions(frames_result[0]['serial_number'])
     frames_result = []
     await websocket.send(instruction_to_send)
@@ -195,9 +202,9 @@ def scheduler():
             time.sleep(1 - (ts % 1))
 
         print(ts)
-        if execute_query("SELECT MIN(scheduleTimestamp) FROM schedule")[0]['MIN(scheduleTimestamp)'] == int(ts):
+        if execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0]['MIN(schedule_timestamp)'] == int(ts):
             results = execute_query("SELECT serial_number, instruction, to_delete, type, schedule_id FROM schedule "
-                                    "WHERE scheduleTimestamp = " + str(int(ts)) + ";")
+                                    "WHERE schedule_timestamp = " + str(int(ts)) + ";")
 
             if len(results) > 1:
                 for result in results:
@@ -218,7 +225,7 @@ def scheduler():
 
             for result in results:
                 if result['to_delete'] == 'TRUE':
-                    execute_query("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) +
+                    execute_query("DELETE FROM schedule WHERE schedule_timestamp = " + str(int(ts)) +
                                   " AND schedule_id = " + str(result['scheduleId']) + ";")
 
 
