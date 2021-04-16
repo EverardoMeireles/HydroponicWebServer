@@ -33,7 +33,7 @@ class PathFinding:
 
     def calculate_node_list_and_open(self, y, x):
         try:
-            if builtins.room_map[y][x] != "Z" and builtins.room_map[y][x] != "O":
+            if builtins.room_map[y][x] not in ["Z", "O"]:
                 # problem here with the cost values??? try adding abs() to both sides of the equation
                 g_cost = abs(self.room_starting_position["y"] - y) + abs(self.room_starting_position["x"] - x)
                 h_cost = abs(self.room_destination["y"] - y) + abs(self.room_destination["x"] - x)

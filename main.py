@@ -12,11 +12,19 @@ from schedule import Schedule
 from pathfinding import PathFinding
 import builtins
 import os
+import cProfile
+import re
 
 # frames_receive = []
 api = Flask(__name__)
 
-DATABASE = 'C:\sqlite3\hydroponicDatabase.db'
+# database path
+DATABASE = r'C:\sqlite3\hydroponicDatabase.db'
+# global db connection
+# connection = sqlite3.connect(r"C:\sqlite3\hydroponicDatabase.db", check_same_thread=False)
+db_uncommitted_count = 0
+# only commit after 100 uncommitted changes
+db_uncommitted_limit = 100
 
 frames_result = []
 schedule_list = []
@@ -36,7 +44,7 @@ device_has_pending_instructions = []
 
 start_with_profiler = True
 
-if start_with_profiler == True:
+if start_with_profiler:
     pid = os.getpid()
     os.system("profiler.bat " + str(pid))
 
@@ -49,22 +57,28 @@ def get_all():
 
 
 def execute_query(query):
+    global db_uncommitted_count
+    global db_uncommitted_count
+
     def dict_factory(cursor, row):
         d = {}
         for idx, col in enumerate(cursor.description):
             d[col[0]] = row[idx]
         return d
 
-    connection = sqlite3.connect("C:\sqlite3\hydroponicDatabase.db")
+    connection = sqlite3.connect(r"C:\sqlite3\hydroponicDatabase.db", check_same_thread=False)
     connection.row_factory = dict_factory
     cursor = connection.cursor()
     query_result = cursor.execute(query)
     list_of_results = query_result.fetchall()
     if not list_of_results:
-        connection.commit()
+        db_uncommitted_count += 1
     else:
         return list_of_results
-    # connection.close()
+
+    if db_uncommitted_count == db_uncommitted_limit:
+        db_uncommitted_count = 0
+        connection.commit()
 
 
 def frame_breakdown(frame):
@@ -73,19 +87,20 @@ def frame_breakdown(frame):
         dictionary_item = current_frame.split("@")
         frame_dictionary = {
             'device': dictionary_item[0],
-            'serialnumber': int(dictionary_item[1]),
+            'serial_number': int(dictionary_item[1]),
             'value': dictionary_item[2],
-            'frametype': dictionary_item[3]
+            'frame_type': dictionary_item[3]
         }
         frames_result.append(frame_dictionary)
     return frames_result
 
 
 # process temperature and humidity frames
-def process_frames(result):
+def log_into_database(result):
     for frame in result:
-        if frame['frametype'] == "temperature" or frame['frametype'] == "humidity":
-            execute_query("INSERT INTO " + frame['frametype'] + " (serial_number, value, timestamp) VALUES(" + str(frame['serialnumber'])
+        if frame['frame_type'] == "temperature" or frame['frame_type'] == "humidity":
+            execute_query("INSERT INTO " + frame['frame_type'] + " (serial_number, value, timestamp) "
+                                                                "VALUES(" + str(frame['serial_number'])
                           + ", " + str(int(frame['value'])) + ", "
                           + str(int(datetime.datetime.now(pytz.timezone('Europe/Berlin')).timestamp())) + ");")
 
@@ -115,9 +130,9 @@ def prepare_to_send_instructions(serial_number):
     for instruction in instruction_to_send:
         if "GOTO" in instruction:
             # get first available crawler's data
-            crawler_serial_number = execute_query("SELECT serialnumber FROM crawlers WHERE status = 'available'")[0]
-            starting_position_x = execute_query("SELECT restingpositionx FROM crawlers WHERE status = 'available'")[0]
-            starting_position_y = execute_query("SELECT restingpositiony FROM crawlers WHERE status = 'available'")[0]
+            crawler_serial_number = execute_query("SELECT serial_number FROM crawlers WHERE status = 'available'")[0]
+            starting_position_x = execute_query("SELECT resting_position_x FROM crawlers WHERE status = 'available'")[0]
+            starting_position_y = execute_query("SELECT resting_position_y FROM crawlers WHERE status = 'available'")[0]
             destination_x = instruction[5]
             destination_y = instruction[7]
 
@@ -127,7 +142,7 @@ def prepare_to_send_instructions(serial_number):
             path.a_star_start()
             crawler_directions = path.final_directions
             execute_query("UPDATE crawlers SET status = moving, directions = " + crawler_directions + ", timestamp =" +
-                          path.time_started_moving + " ... WHERE serialnumber = " + crawler_serial_number + ";")
+                          path.time_started_moving + " ... WHERE serial_number = " + crawler_serial_number + ";")
 
             instruction_to_send = "PATH:" + path.final_directions
             print(instruction)
@@ -139,8 +154,8 @@ async def receiver(websocket, path):
     frames_receive = (await websocket.recv())
     global frames_result
     frames_result = frame_breakdown(frames_receive)
-    process_frames(frames_result)
-    instruction_to_send = prepare_to_send_instructions(frames_result[0]['serialnumber'])
+    log_into_database(frames_result)
+    instruction_to_send = prepare_to_send_instructions(frames_result[0]['serial_number'])
     frames_result = []
     await websocket.send(instruction_to_send)
 
@@ -157,6 +172,7 @@ def thread_socket_server():
 def rest_api_server():
     if __name__ == '__main__':
         api.run(host="0.0.0.0", port=5154, debug=False)
+
 
 # crawlers = []
 # # get list of crawlers from database
@@ -178,23 +194,22 @@ def scheduler():
         else:
             time.sleep(1 - (ts % 1))
 
-        print(execute_query("SELECT MIN(scheduleTimestamp) FROM schedule"))
         print(ts)
         if execute_query("SELECT MIN(scheduleTimestamp) FROM schedule")[0]['MIN(scheduleTimestamp)'] == int(ts):
-            results = execute_query("SELECT serialnumber, instruction, to_delete, type, scheduleid FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + ";")
+            results = execute_query("SELECT serial_number, instruction, to_delete, type, schedule_id FROM schedule "
+                                    "WHERE scheduleTimestamp = " + str(int(ts)) + ";")
 
-            # optimizable?
             if len(results) > 1:
                 for result in results:
-                    if result['serialnumber'] not in device_has_pending_instructions:
-                        device_has_pending_instructions.append(result['serialnumber'])
+                    if result['serial_number'] not in device_has_pending_instructions:
+                        device_has_pending_instructions.append(result['serial_number'])
             else:
-                if results[0]['serialnumber'] not in device_has_pending_instructions:
-                    device_has_pending_instructions.append(results[0]['serialnumber'])
+                if results[0]['serial_number'] not in device_has_pending_instructions:
+                    device_has_pending_instructions.append(results[0]['serial_number'])
 
             counter = 0
             while counter < len(results):
-                schedule_list.append(Schedule(results[counter]['serialnumber'],
+                schedule_list.append(Schedule(results[counter]['serial_number'],
                                               results[counter]['instruction'],
                                               results[counter]['to_delete'],
                                               results[counter]['type'],
@@ -203,7 +218,8 @@ def scheduler():
 
             for result in results:
                 if result['to_delete'] == 'TRUE':
-                    execute_query("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) + " AND scheduleid = " + str(result['scheduleId']) + ";")
+                    execute_query("DELETE FROM schedule WHERE scheduleTimestamp = " + str(int(ts)) +
+                                  " AND schedule_id = " + str(result['scheduleId']) + ";")
 
 
 thread_server = threading.Thread(target=thread_socket_server, args=())
@@ -217,4 +233,6 @@ thread_scheduler.start()
 
 # temporary, test purposes
 dd = PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1}, 1617633825)
-# dd.a_star_start()
+# cProfile.run('dd.a_star_start()')
+dd.a_star_start()
+
