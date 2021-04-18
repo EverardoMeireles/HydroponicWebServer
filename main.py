@@ -25,7 +25,6 @@ DATABASE = r'C:\sqlite3\hydroponicDatabase.db'
 db_uncommitted_count = 0
 # only commit after 100 uncommitted changes
 db_uncommitted_limit = 100
-
 frames_result = []
 schedule_list = []
 
@@ -42,7 +41,7 @@ builtins.room_map = [["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z"],
 
 device_has_pending_instructions = []
 
-start_with_profiler = True
+start_with_profiler = False
 
 if start_with_profiler:
     pid = os.getpid()
@@ -92,6 +91,7 @@ def frame_breakdown(frame):
             'frame_type': dictionary_item[3]
         }
         frames_result.append(frame_dictionary)
+
     return frames_result
 
 
@@ -100,42 +100,47 @@ def prepare_to_send_instructions(serial_number):
     global schedule_list
     # if there are no instructions for this esp "" will be sent
     instruction_to_send = ""
-    if int(serial_number) in device_has_pending_instructions:
-        counter = 0
-        for schedule in schedule_list:
-            if schedule.serial_number == serial_number:
-                instruction_to_send = schedule.instruction
-                schedule_list.pop(counter)
-                break
-            counter += 1
-        schedules_counter = 0
-        for schedule in schedule_list:
-            if schedule is not None and schedule.serial_number == serial_number:
-                schedules_counter += 1
-        if schedules_counter == 0:
-            device_has_pending_instructions[device_has_pending_instructions.index(serial_number)] = None
+    counter = 0
+    for schedule in schedule_list:
+        if schedule.serial_number == serial_number:
+            instruction_to_send = schedule.instruction
+            # if the instruction is about starting the crawler, change the contents of the instruction to the directions
+            # it should be moving
+            if "move_crawler_to" in instruction_to_send:
+                instruction_to_send = calculate_crawler_path(instruction_to_send, schedule.timestamp)
 
-    # if the instruction is about starting the crawler, change the contents of the instruction to the directions
-    # it should be moving
-    for instruction in instruction_to_send:
-        if "GOTO" in instruction:
-            # get first available crawler's data
-            crawler_serial_number = execute_query("SELECT serial_number FROM crawlers WHERE status = 'available'")[0]
-            starting_position_x = execute_query("SELECT resting_position_x FROM crawlers WHERE status = 'available'")[0]
-            starting_position_y = execute_query("SELECT resting_position_y FROM crawlers WHERE status = 'available'")[0]
-            destination_x = instruction[5]
-            destination_y = instruction[7]
+            schedule_list.pop(counter)
+            break
+        counter += 1
+    schedules_counter = 0
+    for schedule in schedule_list:
+        if schedule is not None and schedule.serial_number == serial_number:
+            schedules_counter += 1
+    if schedules_counter == 0:
+        device_has_pending_instructions[device_has_pending_instructions.index(serial_number)] = None
 
-            path = PathFinding({"y": starting_position_y, "x": starting_position_x},
-                               {"y": destination_y, "x": destination_x},
-                               schedule.timestamp)
-            path.a_star_start()
-            crawler_directions = path.final_directions
-            execute_query("UPDATE crawlers SET status = moving, directions = " + crawler_directions + ", timestamp =" +
-                          path.time_started_moving + " ... WHERE serial_number = " + crawler_serial_number + ";")
+    return instruction_to_send
 
-            instruction_to_send = "PATH:" + path.final_directions
-            print(instruction)
+
+def calculate_crawler_path(instruction, timestamp):
+    # get first available crawler's data
+    crawler_serial_number = execute_query("SELECT serial_number FROM crawlers WHERE status = 'available'")[0]
+    starting_position_x = execute_query("SELECT resting_position_x FROM crawlers WHERE status = 'available'")[0]
+    starting_position_y = execute_query("SELECT resting_position_y FROM crawlers WHERE status = 'available'")[0]
+    destination_x = instruction[5]
+    destination_y = instruction[7]
+
+    path = PathFinding({"y": starting_position_y, "x": starting_position_x},
+                       {"y": destination_y, "x": destination_x},
+                       timestamp)
+    path.a_star_start()
+    crawler_directions = path.final_directions
+    execute_query("UPDATE crawlers SET status = moving, directions = " + crawler_directions + ", timestamp =" +
+                  path.time_started_moving + " ... WHERE serial_number = " + crawler_serial_number + ";")
+
+    instruction_to_send = "PATH:" + path.final_directions
+    print(instruction)
+
     return instruction_to_send
 
 
@@ -145,7 +150,7 @@ def apply_frame_processing_type(result):
         if frame['frame_type'] in ["temperature", "humidity"]:
             log_into_database(frame)
 
-        # elif frame['frame_type'] == "move_crawler":
+        # elif frame['frame_type'] == "placeholder":
 
 
 # process temperature and humidity frames
@@ -161,9 +166,14 @@ async def receiver(websocket, path):
     frames_receive = (await websocket.recv())
     global frames_result
     frames_result = frame_breakdown(frames_receive)
-    apply_frame_processing_type(frames_result)
-    instruction_to_send = prepare_to_send_instructions(frames_result[0]['serial_number'])
-    frames_result = []
+    if frames_result not in ["", None]:
+        apply_frame_processing_type(frames_result)
+
+    instruction_to_send = ""
+    if int(frames_result[0]['serial_number']) in device_has_pending_instructions:
+        instruction_to_send = prepare_to_send_instructions(frames_result[0]['serial_number'])
+        frames_result = []
+
     await websocket.send(instruction_to_send)
 
 
@@ -189,9 +199,12 @@ def rest_api_server():
 #     for column in query_result:
 #         crawlers.appe
 
+minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0]['MIN(schedule_timestamp)']
+
 
 def scheduler():
     global schedule_list
+    global minimum_schedule_timestamp
     while True:
         ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
         ts = ct.timestamp()
@@ -202,7 +215,7 @@ def scheduler():
             time.sleep(1 - (ts % 1))
 
         print(ts)
-        if execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0]['MIN(schedule_timestamp)'] == int(ts):
+        if minimum_schedule_timestamp == int(ts):
             results = execute_query("SELECT serial_number, instruction, to_delete, type, schedule_id FROM schedule "
                                     "WHERE schedule_timestamp = " + str(int(ts)) + ";")
 
@@ -227,6 +240,9 @@ def scheduler():
                 if result['to_delete'] == 'TRUE':
                     execute_query("DELETE FROM schedule WHERE schedule_timestamp = " + str(int(ts)) +
                                   " AND schedule_id = " + str(result['scheduleId']) + ";")
+
+            minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0][
+                'MIN(schedule_timestamp)']
 
 
 thread_server = threading.Thread(target=thread_socket_server, args=())
