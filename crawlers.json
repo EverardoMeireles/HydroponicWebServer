@@ -1,0 +1,7 @@
+[
+	{"serial_number": 2, "resting_position_x": 1, "resting_position_y": 8, "status": "moving", "time_started_moving": 1619117678, "coordinates": []},
+	{"serial_number": 3, "resting_position_x": 1, "resting_position_y": 4, "status": "moving", "time_started_moving": 1619117678, "coordinates": []},
+	{"serial_number": 4, "resting_position_x": 2, "resting_position_y": 5, "status": "moving", "time_started_moving": 1619117678, "coordinates": [[9, 2], [9, 3], [9, 4], [7, 3], [6, 3], [5, 3], [4, 3], [3, 3], [3, 2], [2, 2], [2, 1], [1, 1]]},
+	{"serial_number": 5, "resting_position_x": 1, "resting_position_y": 8, "status": "available", "time_started_moving": 1619117678, "coordinates":[]},
+	{"serial_number": 6, "resting_position_x": 1, "resting_position_y": 8, "status": "available", "time_started_moving": 1619117678, "coordinates": []}
+]

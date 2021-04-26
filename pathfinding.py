@@ -1,18 +1,26 @@
 import builtins
+import datetime
+import sqlite3
+import random
+import pytz
+from database import select_crawler, update_crawler
 
 
 class PathFinding:
     # 2d array where the G cost, H cost, F cost and status will be stored.
-    def __init__(self, room_starting_position, room_destination, time_started_moving):
-        self.room_starting_position = room_starting_position
+    def __init__(self, room_destination):
+        self.current_crawler = self.select_crawler_to_move()
+        self.room_starting_position = {"y": self.current_crawler["resting_position_y"],
+                                       "x": self.current_crawler["resting_position_x"]}
         self.room_destination = room_destination
-        self.time_started_moving = time_started_moving
         # set starting node to be opened
-        self.current_position = room_starting_position
+        self.current_position = self.room_starting_position
         self.node_list = []
         self.closed_nodes = []
         self.sorted_nodes_by_weight = []
+        self.direction_coordinates = []
         self.final_directions = []
+        self.room_map = builtins.room_map
 
     def return_direction_values(self, direction_key):
         directions_dict = {
@@ -33,7 +41,7 @@ class PathFinding:
 
     def calculate_node_list_and_open(self, y, x):
         try:
-            if builtins.room_map[y][x] not in ["Z", "O"]:
+            if self.room_map[y][x] not in ["Z", "O"]:
                 # problem here with the cost values??? try adding abs() to both sides of the equation
                 g_cost = abs(self.room_starting_position["y"] - y) + abs(self.room_starting_position["x"] - x)
                 h_cost = abs(self.room_destination["y"] - y) + abs(self.room_destination["x"] - x)
@@ -78,7 +86,7 @@ class PathFinding:
         self.current_position = {"y": node_to_add["y"], "x": node_to_add["x"]}
         self.closed_nodes.append(node_to_add)
         self.node_list.pop(node_to_close)
-        builtins.room_map[node_to_add["y"]][node_to_add["x"]] = "D"
+        self.room_map[node_to_add["y"]][node_to_add["x"]] = "D"
 
     def apply_weights(self):
         for node in self.closed_nodes:
@@ -107,6 +115,7 @@ class PathFinding:
                             if node_loop["weight"] < lowest_weight:
                                 lowest_weight = node_loop["weight"]
                                 next_node = node_loop
+                                self.direction_coordinates.append([node_loop["y"], node_loop["x"]])
 
                 if next_node not in self.sorted_nodes_by_weight:
                     self.sorted_nodes_by_weight.append(next_node)
@@ -121,6 +130,7 @@ class PathFinding:
             "weight": self.sorted_nodes_by_weight[0]["weight"] + 1,
             "y": self.room_destination["y"],
             "x": self.room_destination["x"]})
+        self.direction_coordinates.insert(0, [self.room_destination["y"], self.room_destination["x"]])
 
         self.sorted_nodes_by_weight.append({"g_cost": 0,
                                             "h_cost": abs(
@@ -132,6 +142,8 @@ class PathFinding:
                                             "weight": 1,
                                             "y": self.room_starting_position["y"],
                                             "x": self.room_starting_position["x"]})
+        self.direction_coordinates.append([self.room_starting_position["y"], self.room_starting_position["x"]])
+        print()
 
     def determine_raw_directions(self):
         directions_dict = {
@@ -175,18 +187,60 @@ class PathFinding:
             new_directions.append(reverse_direction_dict[direction])
 
         new_directions.reverse()
+        self.direction_coordinates.reverse()
         return new_directions
 
-    def a_star_start(self):
-        builtins.room_map[self.room_starting_position["y"]][self.room_starting_position["x"]] = "O"
-        while (self.current_position["y"], self.current_position["x"]) != (
-                self.room_destination["y"], self.room_destination["x"]):
-            self.open_surrounding_nodes()
-            self.close_the_next_node()
+    # randomly selects the crawler to move from available crawlers
+    def select_crawler_to_move(self):
+        list_of_available_crawlers = select_crawler({"status": "available"})
+        try:
+            return list_of_available_crawlers[random.randint(0, len(list_of_available_crawlers) - 1)]
+        except ValueError:
+            # if there are no available crawlers
+            print("no available crawlers")
 
-        self.apply_weights()
-        self.trace_backwards_path()
-        raw_directions = self.determine_raw_directions()
-        raw_directions = self.reverse_directions(raw_directions)
-        self.final_directions = self.add_crawler_rotation(raw_directions)
+    # check if the current crawler will collide with one of the crawlers already moving
+    def check_for_collisions(self):
+        current_crawler_coordinates = self.direction_coordinates
+        list_of_moving_crawlers = select_crawler({"status": "moving"})
+        ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
+        ts = int(ct.timestamp())
+        for current_coordinate in current_crawler_coordinates:
+            for moving_crawler in list_of_moving_crawlers:
+                timestamp_counter = 0
+                for moving_coordinate in moving_crawler["coordinates"]:
+                    if current_coordinate == moving_coordinate and (ts + timestamp_counter) == \
+                            (moving_crawler["time_started_moving"] + timestamp_counter):
+                        self.room_map[moving_coordinate[0]][moving_coordinate[1]] = "Z"
+                        return True
+                    timestamp_counter += 1
+
+        return False
+
+    def a_star_start(self):
+        run_again = True
+        while run_again:
+            self.node_list = []
+            self.closed_nodes = []
+            self.sorted_nodes_by_weight = []
+            self.direction_coordinates = []
+            self.final_directions = []
+            self.current_position = self.room_starting_position
+            self.room_map[self.room_starting_position["y"]][self.room_starting_position["x"]] = "O"
+            while (self.current_position["y"], self.current_position["x"]) != (
+                    self.room_destination["y"], self.room_destination["x"]):
+                self.open_surrounding_nodes()
+                self.close_the_next_node()
+
+            self.apply_weights()
+            self.trace_backwards_path()
+            raw_directions = self.determine_raw_directions()
+            raw_directions = self.reverse_directions(raw_directions)
+            self.final_directions = self.add_crawler_rotation(raw_directions)
+            # if the crawler collides with another crawler, mark this spot as blocked and rerun the pathfinding
+            run_again = self.check_for_collisions()
+
+        ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
+        ts = int(ct.timestamp())
+        update_crawler(self.current_crawler["serial_number"], {"status": "moving", "time_started_moving": str(ts), "coordinates": self.direction_coordinates})
         print("the end")

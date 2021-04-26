@@ -5,36 +5,30 @@ import websockets
 import threading
 import time
 import sqlite3
-from flask import Flask, json
+from flask import Flask
 import datetime
 import pytz
 from schedule import Schedule
-from pathfinding import PathFinding
+import pathfinding
 import builtins
 import os
 import cProfile
 import re
-
+import ujson
+from database import execute_query, list_of_crawlers, select_crawler
 # frames_receive = []
 api = Flask(__name__)
 
-# database path
-DATABASE = r'C:\sqlite3\hydroponicDatabase.db'
-# global db connection
-# connection = sqlite3.connect(r"C:\sqlite3\hydroponicDatabase.db", check_same_thread=False)
-db_uncommitted_count = 0
-# only commit after 100 uncommitted changes
-db_uncommitted_limit = 100
 frames_result = []
 schedule_list = []
 
 builtins.room_map = [["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z"],
                      ["Z", "G", "Z", "Z", "G", "Z", "Z", "Z", "G", "Z"],
                      ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
-                     ["Z", "Z", "G", "G", "G", "Z", "Z", "Z", "G", "Z"],
+                     ["Z", "Z", "G", "G", "G", "Z", "Z", "G", "G", "Z"],
                      ["Z", "Z", "Z", "G", "Z", "Z", "G", "Z", "Z", "Z"],
                      ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
-                     ["Z", "Z", "Z", "G", "G", "Z", "Z", "Z", "G", "Z"],
+                     ["Z", "Z", "Z", "G", "G", "Z", "G", "Z", "G", "Z"],
                      ["Z", "Z", "Z", "G", "Z", "Z", "G", "Z", "Z", "Z"],
                      ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
                      ["Z", "Z", "Z", "Z", "G", "Z", "Z", "Z", "G", "Z"]]
@@ -52,49 +46,10 @@ if start_with_profiler:
 # get all sensor information
 def get_all():
     print(frames_result)
-    return json.dumps(frames_result)
+    return ujson.dumps(frames_result)
 
 
-def execute_query(query):
-    global db_uncommitted_count
-    global db_uncommitted_count
-
-    def dict_factory(cursor, row):
-        d = {}
-        for idx, col in enumerate(cursor.description):
-            d[col[0]] = row[idx]
-        return d
-
-    connection = sqlite3.connect(r"C:\sqlite3\hydroponicDatabase.db", check_same_thread=False)
-    connection.row_factory = dict_factory
-    cursor = connection.cursor()
-    query_result = cursor.execute(query)
-    list_of_results = query_result.fetchall()
-    if not list_of_results:
-        db_uncommitted_count += 1
-    else:
-        return list_of_results
-
-    if db_uncommitted_count == db_uncommitted_limit:
-        db_uncommitted_count = 0
-        connection.commit()
-
-
-def frame_breakdown(frame):
-    all_frames = frame.split("&")
-    for current_frame in all_frames:
-        dictionary_item = current_frame.split("@")
-        frame_dictionary = {
-            'device': dictionary_item[0],
-            'serial_number': int(dictionary_item[1]),
-            'value': dictionary_item[2],
-            'frame_type': dictionary_item[3]
-        }
-        frames_result.append(frame_dictionary)
-
-    return frames_result
-
-
+# send instruction message to device that sent server a message
 def prepare_to_send_instructions(serial_number):
     global device_has_pending_instructions
     global schedule_list
@@ -107,7 +62,7 @@ def prepare_to_send_instructions(serial_number):
             # if the instruction is about starting the crawler, change the contents of the instruction to the directions
             # it should be moving
             if "move_crawler_to" in instruction_to_send:
-                instruction_to_send = calculate_crawler_path(instruction_to_send, schedule.timestamp)
+                instruction_to_send = calculate_crawler_path(instruction_to_send)
 
             schedule_list.pop(counter)
             break
@@ -122,28 +77,17 @@ def prepare_to_send_instructions(serial_number):
     return instruction_to_send
 
 
-def calculate_crawler_path(instruction, timestamp):
-    # get first available crawler's data
-    crawler_serial_number = execute_query("SELECT serial_number FROM crawlers WHERE status = 'available'")[0]
-    starting_position_x = execute_query("SELECT resting_position_x FROM crawlers WHERE status = 'available'")[0]
-    starting_position_y = execute_query("SELECT resting_position_y FROM crawlers WHERE status = 'available'")[0]
+# get instruction message from the scheduler and calculate the crawler's path
+def calculate_crawler_path(instruction):
     destination_x = instruction[5]
     destination_y = instruction[7]
-
-    path = PathFinding({"y": starting_position_y, "x": starting_position_x},
-                       {"y": destination_y, "x": destination_x},
-                       timestamp)
+    path = pathfinding.PathFinding({"y": destination_y, "x": destination_x})
     path.a_star_start()
-    crawler_directions = path.final_directions
-    execute_query("UPDATE crawlers SET status = moving, directions = " + crawler_directions + ", timestamp =" +
-                  path.time_started_moving + " ... WHERE serial_number = " + crawler_serial_number + ";")
-
     instruction_to_send = "PATH:" + path.final_directions
-    print(instruction)
-
     return instruction_to_send
 
 
+# apply processing type based on the type of frame
 def apply_frame_processing_type(result):
     for frame in result:
         # log into database(sensor data)
@@ -165,7 +109,12 @@ def log_into_database(frame):
 async def receiver(websocket, path):
     frames_receive = (await websocket.recv())
     global frames_result
-    frames_result = frame_breakdown(frames_receive)
+    frames_result = ujson.loads(frames_receive)
+    # if there's only one message, create a list with one element
+    if not isinstance(frames_result, list):
+        temp_list = [frames_result]
+        frames_result = temp_list
+
     if frames_result not in ["", None]:
         apply_frame_processing_type(frames_result)
 
@@ -199,7 +148,11 @@ def rest_api_server():
 #     for column in query_result:
 #         crawlers.appe
 
-minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0]['MIN(schedule_timestamp)']
+# turns on scheduler optimization, makes code faster but makes modifying database on the fly impossible, difficult to
+# debug
+scheduler_optimization = False
+if scheduler_optimization:
+    minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0]['MIN(schedule_timestamp)']
 
 
 def scheduler():
@@ -215,6 +168,9 @@ def scheduler():
             time.sleep(1 - (ts % 1))
 
         print(ts)
+        if scheduler_optimization is not True:
+            minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0]['MIN(schedule_timestamp)']
+
         if minimum_schedule_timestamp == int(ts):
             results = execute_query("SELECT serial_number, instruction, to_delete, type, schedule_id FROM schedule "
                                     "WHERE schedule_timestamp = " + str(int(ts)) + ";")
@@ -255,7 +211,7 @@ thread_scheduler = threading.Thread(target=scheduler, args=())
 thread_scheduler.start()
 
 # temporary, test purposes
-dd = PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1}, 1617633825)
-# cProfile.run('dd.a_star_start()')
+# dd = pathfinding.PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
+dd = pathfinding.PathFinding({"y": 1, "x": 1})
 dd.a_star_start()
 
