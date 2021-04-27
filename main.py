@@ -4,7 +4,6 @@ import asyncio
 import websockets
 import threading
 import time
-import sqlite3
 from flask import Flask
 import datetime
 import pytz
@@ -15,7 +14,7 @@ import os
 import cProfile
 import re
 import ujson
-from database import execute_query, list_of_crawlers, select_crawler
+from database import execute_query
 # frames_receive = []
 api = Flask(__name__)
 
@@ -163,7 +162,8 @@ def rest_api_server():
 # debug
 scheduler_optimization = False
 if scheduler_optimization:
-    minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0]['MIN(schedule_timestamp)']
+    minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) "
+                                               "FROM schedule")[0]['MIN(schedule_timestamp)']
 
 
 def scheduler():
@@ -180,7 +180,8 @@ def scheduler():
 
         print(ts)
         if scheduler_optimization is not True:
-            minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0]['MIN(schedule_timestamp)']
+            minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) "
+                                                       "FROM schedule")[0]['MIN(schedule_timestamp)']
 
         if minimum_schedule_timestamp == int(ts):
             results = execute_query("SELECT serial_number, instruction, to_delete, type, schedule_id "
@@ -223,4 +224,3 @@ thread_scheduler.start()
 # dd = pathfinding.PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
 # dd = pathfinding.PathFinding({"y": 1, "x": 1})
 # dd.a_star_start()
-

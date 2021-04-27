@@ -1,6 +1,5 @@
 import builtins
 import datetime
-import sqlite3
 import random
 import pytz
 from database import select_crawler, update_crawler
@@ -229,12 +228,13 @@ class PathFinding:
             self.apply_weights()
             self.trace_backwards_path()
             raw_directions = self.determine_raw_directions()
-            #raw_directions = self.reverse_directions(raw_directions)
             self.final_directions = self.add_crawler_rotation(raw_directions)
             # if the crawler collides with another crawler, mark this spot as blocked and rerun the pathfinding
             run_again = self.check_for_collisions()
         print(self.direction_coordinates)
         ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
         ts = int(ct.timestamp())
-        update_crawler(self.current_crawler["serial_number"], {"status": "moving", "time_started_moving": ts, "coordinates": self.direction_coordinates})
+        update_crawler(self.current_crawler["serial_number"], {"status": "moving",
+                                                               "time_started_moving": ts,
+                                                               "coordinates": self.direction_coordinates})
         print("the end")
