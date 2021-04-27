@@ -87,7 +87,7 @@ def prepare_to_send_instructions(serial_number):
             schedules_counter += 1
 
     if schedules_counter == 0:
-        device_has_pending_instructions[device_has_pending_instructions.index(serial_number)] = None
+        device_has_pending_instructions.pop(device_has_pending_instructions.index(serial_number))
 
     return instruction_to_send
 
@@ -194,14 +194,12 @@ def scheduler():
                 if results[0]['serial_number'] not in device_has_pending_instructions:
                     device_has_pending_instructions.append(results[0]['serial_number'])
 
-            counter = 0
-            while counter < len(results):
-                schedule_list.append(Schedule(results[counter]['serial_number'],
-                                              results[counter]['instruction'],
-                                              results[counter]['to_delete'],
-                                              results[counter]['type'],
+            for result in results:
+                schedule_list.append(Schedule(result['serial_number'],
+                                              result['instruction'],
+                                              result['to_delete'],
+                                              result['type'],
                                               int(ts)))
-                counter += 1
 
             for result in results:
                 if result['to_delete'] == 'TRUE':

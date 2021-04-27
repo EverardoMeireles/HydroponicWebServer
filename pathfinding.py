@@ -161,10 +161,15 @@ class PathFinding:
         raw_directions = []
         for current_node in self.sorted_nodes_by_weight:
             if current_node != self.sorted_nodes_by_weight[0]:
+                # determine raw directions by taking x and y values of the nodes and inverting them
                 dictionary_direction_value = directions_dict[
-                    (current_node['y'] - previous_node["y"], current_node["x"] - previous_node["x"])]
+                    ((current_node['y'] - previous_node["y"])*-1, (current_node["x"] - previous_node["x"])*-1)]
                 raw_directions.append(dictionary_direction_value)
             previous_node = current_node
+
+        # reverse the directions since we were tracing the backwards path
+        raw_directions.reverse()
+        self.direction_coordinates.reverse()
         return raw_directions
 
     def add_crawler_rotation(self, raw_directions):
@@ -179,21 +184,6 @@ class PathFinding:
             previous_direction = direction
         return directions_with_rotations
 
-    def reverse_directions(self, raw_directions):
-        reverse_direction_dict = {
-            "left": "right",
-            "right": "left",
-            "up": "down",
-            "down": "up"
-        }
-        new_directions = []
-        for direction in raw_directions:
-            new_directions.append(reverse_direction_dict[direction])
-
-        new_directions.reverse()
-        self.direction_coordinates.reverse()
-        return new_directions
-
     # randomly selects the crawler to move from available crawlers
     def select_crawler_to_move(self):
         list_of_available_crawlers = select_crawler({"status": "available"})
@@ -202,7 +192,6 @@ class PathFinding:
         except ValueError:
             # if there are no available crawlers
             return "crawler unavailable"
-            print("no available crawlers")
 
     # check if the current crawler will collide with one of the crawlers already moving
     def check_for_collisions(self):
@@ -240,7 +229,7 @@ class PathFinding:
             self.apply_weights()
             self.trace_backwards_path()
             raw_directions = self.determine_raw_directions()
-            raw_directions = self.reverse_directions(raw_directions)
+            #raw_directions = self.reverse_directions(raw_directions)
             self.final_directions = self.add_crawler_rotation(raw_directions)
             # if the crawler collides with another crawler, mark this spot as blocked and rerun the pathfinding
             run_again = self.check_for_collisions()
