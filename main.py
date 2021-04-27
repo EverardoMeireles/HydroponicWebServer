@@ -31,7 +31,7 @@ builtins.room_map = [["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z"],
                      ["Z", "Z", "Z", "G", "G", "Z", "G", "Z", "G", "Z"],
                      ["Z", "Z", "Z", "G", "Z", "Z", "G", "Z", "Z", "Z"],
                      ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
-                     ["Z", "Z", "Z", "Z", "G", "Z", "Z", "Z", "G", "Z"]]
+                     ["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "G", "Z"]]
 
 device_has_pending_instructions = []
 
@@ -53,24 +53,39 @@ def get_all():
 def prepare_to_send_instructions(serial_number):
     global device_has_pending_instructions
     global schedule_list
-    # if there are no instructions for this esp "" will be sent
-    instruction_to_send = ""
-    counter = 0
-    for schedule in schedule_list:
-        if schedule.serial_number == serial_number:
-            instruction_to_send = schedule.instruction
-            # if the instruction is about starting the crawler, change the contents of the instruction to the directions
-            # it should be moving
-            if "move_crawler_to" in instruction_to_send:
-                instruction_to_send = calculate_crawler_path(instruction_to_send)
 
-            schedule_list.pop(counter)
+    # if the instruction is about starting the crawler, change the contents of the instruction to the directions
+    # it should be moving
+    def instruction_pre_processing(instruction):
+        processed_instruction = instruction
+        passed = True
+        # what to do to the schedule in case of pre-processing failure: none, postpone, delete
+        failure_measure_to_take = "none"
+        # if the instruction is to move the crawler to a position
+        if "move_crawler_to" in processed_instruction:
+            processed_instruction = calculate_crawler_path(processed_instruction)
+            if processed_instruction == "crawler unavailable":
+                passed = False
+                failure_measure_to_take = "postpone"
+        # elif
+
+        return processed_instruction, passed, failure_measure_to_take
+
+    # if there are no instructions for this device "" will be sent
+    instruction_to_send = ""
+    for schedule in schedule_list:
+        instruction_to_send, processing_passed, measure = instruction_pre_processing(schedule.instruction)
+        if schedule.serial_number == serial_number:
+            if processing_passed is True or measure == "delete":
+                schedule_list.pop(schedule_list.index(schedule))
+
             break
-        counter += 1
+
     schedules_counter = 0
     for schedule in schedule_list:
         if schedule is not None and schedule.serial_number == serial_number:
             schedules_counter += 1
+
     if schedules_counter == 0:
         device_has_pending_instructions[device_has_pending_instructions.index(serial_number)] = None
 
@@ -79,11 +94,15 @@ def prepare_to_send_instructions(serial_number):
 
 # get instruction message from the scheduler and calculate the crawler's path
 def calculate_crawler_path(instruction):
-    destination_x = instruction[5]
-    destination_y = instruction[7]
+    destination_y = int(instruction[16])
+    destination_x = int(instruction[18])
     path = pathfinding.PathFinding({"y": destination_y, "x": destination_x})
-    path.a_star_start()
-    instruction_to_send = "PATH:" + path.final_directions
+    if path.current_crawler != "crawler unavailable":
+        path.a_star_start()
+        instruction_to_send = "PATH: " + " ".join(path.final_directions)
+    else:
+        instruction_to_send = path.current_crawler
+    print(instruction_to_send)
     return instruction_to_send
 
 
@@ -140,14 +159,6 @@ def rest_api_server():
         api.run(host="0.0.0.0", port=5154, debug=False)
 
 
-# crawlers = []
-# # get list of crawlers from database
-# def updateCrawlerList():
-#     global crawlers
-#     query_result = execute_query("SELECT * FROM crawlers")
-#     for column in query_result:
-#         crawlers.appe
-
 # turns on scheduler optimization, makes code faster but makes modifying database on the fly impossible, difficult to
 # debug
 scheduler_optimization = False
@@ -172,8 +183,8 @@ def scheduler():
             minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0]['MIN(schedule_timestamp)']
 
         if minimum_schedule_timestamp == int(ts):
-            results = execute_query("SELECT serial_number, instruction, to_delete, type, schedule_id FROM schedule "
-                                    "WHERE schedule_timestamp = " + str(int(ts)) + ";")
+            results = execute_query("SELECT serial_number, instruction, to_delete, type, schedule_id "
+                                    "FROM schedule WHERE schedule_timestamp = " + str(int(ts)) + ";")
 
             if len(results) > 1:
                 for result in results:
@@ -212,6 +223,6 @@ thread_scheduler.start()
 
 # temporary, test purposes
 # dd = pathfinding.PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
-dd = pathfinding.PathFinding({"y": 1, "x": 1})
-dd.a_star_start()
+# dd = pathfinding.PathFinding({"y": 1, "x": 1})
+# dd.a_star_start()
 

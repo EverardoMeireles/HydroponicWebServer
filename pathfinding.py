@@ -10,8 +10,12 @@ class PathFinding:
     # 2d array where the G cost, H cost, F cost and status will be stored.
     def __init__(self, room_destination):
         self.current_crawler = self.select_crawler_to_move()
-        self.room_starting_position = {"y": self.current_crawler["resting_position_y"],
-                                       "x": self.current_crawler["resting_position_x"]}
+        try:
+            self.room_starting_position = {"y": self.current_crawler["resting_position_y"],
+                                           "x": self.current_crawler["resting_position_x"]}
+        except TypeError:
+            self.room_starting_position = {}
+
         self.room_destination = room_destination
         # set starting node to be opened
         self.current_position = self.room_starting_position
@@ -197,6 +201,7 @@ class PathFinding:
             return list_of_available_crawlers[random.randint(0, len(list_of_available_crawlers) - 1)]
         except ValueError:
             # if there are no available crawlers
+            return "crawler unavailable"
             print("no available crawlers")
 
     # check if the current crawler will collide with one of the crawlers already moving
@@ -239,8 +244,8 @@ class PathFinding:
             self.final_directions = self.add_crawler_rotation(raw_directions)
             # if the crawler collides with another crawler, mark this spot as blocked and rerun the pathfinding
             run_again = self.check_for_collisions()
-
+        print(self.direction_coordinates)
         ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
         ts = int(ct.timestamp())
-        update_crawler(self.current_crawler["serial_number"], {"status": "moving", "time_started_moving": str(ts), "coordinates": self.direction_coordinates})
+        update_crawler(self.current_crawler["serial_number"], {"status": "moving", "time_started_moving": ts, "coordinates": self.direction_coordinates})
         print("the end")
