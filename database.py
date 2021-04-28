@@ -1,24 +1,21 @@
 import ujson
 import sqlite3
+from utils import config
 
 # database path
-DATABASE = r"C:\sqlite3\hydroponicDatabase.db"
+DATABASE = config.get("Database", "db_path")
 
-db_optimized = False
-
-if db_optimized is not True:
+if config.getboolean("Database", "db_optimization") is not True:
     connection = sqlite3.connect(DATABASE, check_same_thread=False)
 
 db_uncommitted_count = 0
 # only commit after 100 uncommitted changes
-db_uncommitted_limit = 100
 
 with open('crawlers.json', 'r') as json_file:
     list_of_crawlers = ujson.load(json_file)
 
 
 def execute_query(query):
-    global db_uncommitted_count
     global db_uncommitted_count
 
     def dict_factory(cursor, row):
@@ -27,7 +24,7 @@ def execute_query(query):
             d[col[0]] = row[idx]
         return d
 
-    if db_optimized is not True:
+    if config.getboolean("Database", "db_optimization") is not True:
         connection = sqlite3.connect(DATABASE, check_same_thread=False)
 
     connection.row_factory = dict_factory
@@ -39,7 +36,8 @@ def execute_query(query):
     else:
         return list_of_results
 
-    if db_uncommitted_count == db_uncommitted_limit and db_optimized:
+    if db_uncommitted_count == config.getint("Database", "db_uncommitted_limit")\
+            and config.getboolean("Database", "db_optimization"):
         db_uncommitted_count = 0
         connection.commit()
     else:

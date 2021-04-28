@@ -3,6 +3,7 @@ import datetime
 import random
 import pytz
 from database import select_crawler, update_crawler
+from utils import room_map
 
 
 class PathFinding:
@@ -23,7 +24,7 @@ class PathFinding:
         self.sorted_nodes_by_weight = []
         self.direction_coordinates = []
         self.final_directions = []
-        self.room_map = builtins.room_map
+        self.room_map = room_map
 
     def return_direction_values(self, direction_key):
         directions_dict = {

@@ -15,28 +15,28 @@ import cProfile
 import re
 import ujson
 from database import execute_query
+from utils import config
+
 # frames_receive = []
 api = Flask(__name__)
 
 frames_result = []
 schedule_list = []
 
-builtins.room_map = [["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z"],
-                     ["Z", "G", "Z", "Z", "G", "Z", "Z", "Z", "G", "Z"],
-                     ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
-                     ["Z", "Z", "G", "G", "G", "Z", "Z", "G", "G", "Z"],
-                     ["Z", "Z", "Z", "G", "Z", "Z", "G", "Z", "Z", "Z"],
-                     ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
-                     ["Z", "Z", "Z", "G", "G", "Z", "G", "Z", "G", "Z"],
-                     ["Z", "Z", "Z", "G", "Z", "Z", "G", "Z", "Z", "Z"],
-                     ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
-                     ["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "G", "Z"]]
+# builtins.room_map = [["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z"],
+#                      ["Z", "G", "Z", "Z", "G", "Z", "Z", "Z", "G", "Z"],
+#                      ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
+#                      ["Z", "Z", "G", "G", "G", "Z", "Z", "G", "G", "Z"],
+#                      ["Z", "Z", "Z", "G", "Z", "Z", "G", "Z", "Z", "Z"],
+#                      ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
+#                      ["Z", "Z", "Z", "G", "G", "Z", "G", "Z", "G", "Z"],
+#                      ["Z", "Z", "Z", "G", "Z", "Z", "G", "Z", "Z", "Z"],
+#                      ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
+#                      ["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "G", "Z"]]
 
 device_has_pending_instructions = []
 
-start_with_profiler = False
-
-if start_with_profiler:
+if config.getboolean("Main", "start_with_profiler"):
     pid = os.getpid()
     os.system("profiler.bat " + str(pid))
 
@@ -158,10 +158,9 @@ def rest_api_server():
         api.run(host="0.0.0.0", port=5154, debug=False)
 
 
-# turns on scheduler optimization, makes code faster but makes modifying database on the fly impossible, difficult to
-# debug
-scheduler_optimization = False
-if scheduler_optimization:
+# if scheduler_optimization is True on config.ini, makes code execution faster but makes
+# modifying database on the fly impossible, difficult to debug.
+if config.getboolean("Main", "scheduler_optimization"):
     minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) "
                                                "FROM schedule")[0]['MIN(schedule_timestamp)']
 
@@ -179,7 +178,7 @@ def scheduler():
             time.sleep(1 - (ts % 1))
 
         print(ts)
-        if scheduler_optimization is not True:
+        if config.getboolean("Main", "scheduler_optimization") is not True:
             minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) "
                                                        "FROM schedule")[0]['MIN(schedule_timestamp)']
 
