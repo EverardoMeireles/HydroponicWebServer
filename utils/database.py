@@ -1,6 +1,6 @@
 import ujson
 import sqlite3
-from utils import config
+from utils.config import config
 
 # database path
 DATABASE = config.get("Database", "db_path")
@@ -11,7 +11,7 @@ if config.getboolean("Database", "db_optimization") is not True:
 db_uncommitted_count = 0
 # only commit after 100 uncommitted changes
 
-with open('crawlers.json', 'r') as json_file:
+with open('crawler/crawlers.json', 'r') as json_file:
     list_of_crawlers = ujson.load(json_file)
 
 
@@ -63,5 +63,5 @@ def update_crawler(serial_number, updated_values):
 
 
 def save_crawler():
-    with open('crawlers.json', 'w') as json_file:
+    with open('crawler/crawlers.json', 'w') as json_file:
         ujson.dump(list_of_crawlers, json_file)

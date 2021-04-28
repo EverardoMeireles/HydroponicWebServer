@@ -7,15 +7,15 @@ import time
 from flask import Flask
 import datetime
 import pytz
-from schedule import Schedule
-import pathfinding
+from utils.schedule import Schedule
+from crawler.pathfinding import PathFinding
 import builtins
 import os
 import cProfile
 import re
 import ujson
-from database import execute_query
-from utils import config
+from utils.database import execute_query
+from utils.config import config
 
 # frames_receive = []
 api = Flask(__name__)
@@ -58,6 +58,7 @@ def prepare_to_send_instructions(serial_number):
     def instruction_pre_processing(instruction):
         processed_instruction = instruction
         passed = True
+        new_device_serial_number = 0
         # what to do to the schedule in case of pre-processing failure: none, postpone, delete
         failure_measure_to_take = "none"
         # if the instruction is to move the crawler to a position
@@ -68,12 +69,16 @@ def prepare_to_send_instructions(serial_number):
                 failure_measure_to_take = "postpone"
         # elif
 
-        return processed_instruction, passed, failure_measure_to_take
+        return processed_instruction, passed, failure_measure_to_take, new_device_serial_number
 
     # if there are no instructions for this device "" will be sent
     instruction_to_send = ""
     for schedule in schedule_list:
-        instruction_to_send, processing_passed, measure = instruction_pre_processing(schedule.instruction)
+        instruction_to_send, processing_passed, measure, new_serial_number = instruction_pre_processing(schedule.instruction)
+        # change schedule's serial_number to the serial_number of the chosen crawler
+        if new_serial_number != 0 and config.getboolean("Main", "crawler_debug"):
+            schedule.serial_number = new_serial_number
+            serial_number = new_serial_number
         if schedule.serial_number == serial_number:
             if processing_passed is True or measure == "delete":
                 schedule_list.pop(schedule_list.index(schedule))
@@ -95,7 +100,7 @@ def prepare_to_send_instructions(serial_number):
 def calculate_crawler_path(instruction):
     destination_y = int(instruction[16])
     destination_x = int(instruction[18])
-    path = pathfinding.PathFinding({"y": destination_y, "x": destination_x})
+    path = PathFinding({"y": destination_y, "x": destination_x})
     if path.current_crawler != "crawler unavailable":
         path.a_star_start()
         instruction_to_send = "PATH: " + " ".join(path.final_directions)
@@ -125,8 +130,8 @@ def log_into_database(frame):
 
 # Socket Server
 async def receiver(websocket, path):
-    frames_receive = (await websocket.recv())
     global frames_result
+    frames_receive = (await websocket.recv())
     frames_result = ujson.loads(frames_receive)
     # if there's only one message, create a list with one element
     if not isinstance(frames_result, list):

@@ -2,8 +2,8 @@ import builtins
 import datetime
 import random
 import pytz
-from database import select_crawler, update_crawler
-from utils import room_map
+from utils.database import select_crawler, update_crawler
+from utils.config import room_map
 
 
 class PathFinding:
