@@ -9,7 +9,6 @@ import datetime
 import pytz
 from utils.schedule import Schedule
 from crawler.pathfinding import PathFinding
-import builtins
 import os
 import cProfile
 import re
@@ -22,17 +21,6 @@ api = Flask(__name__)
 
 frames_result = []
 schedule_list = []
-
-# builtins.room_map = [["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z"],
-#                      ["Z", "G", "Z", "Z", "G", "Z", "Z", "Z", "G", "Z"],
-#                      ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
-#                      ["Z", "Z", "G", "G", "G", "Z", "Z", "G", "G", "Z"],
-#                      ["Z", "Z", "Z", "G", "Z", "Z", "G", "Z", "Z", "Z"],
-#                      ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
-#                      ["Z", "Z", "Z", "G", "G", "Z", "G", "Z", "G", "Z"],
-#                      ["Z", "Z", "Z", "G", "Z", "Z", "G", "Z", "Z", "Z"],
-#                      ["Z", "G", "G", "G", "G", "G", "G", "G", "G", "Z"],
-#                      ["Z", "Z", "Z", "Z", "Z", "Z", "Z", "Z", "G", "Z"]]
 
 device_has_pending_instructions = []
 
@@ -152,7 +140,7 @@ async def receiver(websocket, path):
 # Socket Server thread
 def thread_socket_server():
     asyncio.set_event_loop(asyncio.new_event_loop())
-    start_server = websockets.serve(receiver, "192.168.1.58", 5153)
+    start_server = websockets.serve(receiver, "192.168.1.8", 5153)
     asyncio.get_event_loop().run_until_complete(start_server)
     asyncio.get_event_loop().run_forever()
     api.run()

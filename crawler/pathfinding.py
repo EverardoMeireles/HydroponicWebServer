@@ -1,4 +1,3 @@
-import builtins
 import datetime
 import random
 import pytz
@@ -126,14 +125,14 @@ class PathFinding:
 
         # add first and last nodes
         self.sorted_nodes_by_weight.insert(0, {
-            "g_cost": abs(self.room_starting_position["y"] - self.room_destination["y"]) + abs(
-                self.room_starting_position["x"] - self.room_destination["x"]),
-            "h_cost": 0,
-            "f_cost": 0 + (abs(self.room_destination["y"] - self.room_starting_position["y"]) + abs(
-                self.room_destination["x"] - self.room_starting_position["x"])),
-            "weight": self.sorted_nodes_by_weight[0]["weight"] + 1,
-            "y": self.room_destination["y"],
-            "x": self.room_destination["x"]})
+                                            "g_cost": abs(self.room_starting_position["y"] - self.room_destination["y"]) + abs(
+                                                self.room_starting_position["x"] - self.room_destination["x"]),
+                                            "h_cost": 0,
+                                            "f_cost": 0 + (abs(self.room_destination["y"] - self.room_starting_position["y"]) + abs(
+                                                self.room_destination["x"] - self.room_starting_position["x"])),
+                                            "weight": self.sorted_nodes_by_weight[0]["weight"] + 1,
+                                            "y": self.room_destination["y"],
+                                            "x": self.room_destination["x"]})
         self.direction_coordinates.insert(0, [self.room_destination["y"], self.room_destination["x"]])
 
         self.sorted_nodes_by_weight.append({"g_cost": 0,
@@ -147,8 +146,8 @@ class PathFinding:
                                             "y": self.room_starting_position["y"],
                                             "x": self.room_starting_position["x"]})
         self.direction_coordinates.append([self.room_starting_position["y"], self.room_starting_position["x"]])
-        print()
 
+    # directions_dict out of place?
     def determine_raw_directions(self):
         directions_dict = {
             (0, -1): "left",
