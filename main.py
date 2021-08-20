@@ -36,20 +36,20 @@ def get_all():
     return ujson.dumps(frames_result)
 
 
-# send instruction message to device that sent server a message
+# prepare to send instruction message to the device that sent the server a message
 def prepare_to_send_instructions(serial_number):
     global device_has_pending_instructions
     global schedule_list
 
-    # if the instruction is about starting the crawler, change the contents of the instruction to the directions
-    # it should be moving
+    # pre-processing of the instruction to be sent according to its type
     def instruction_pre_processing(instruction):
         processed_instruction = instruction
         passed = True
         new_device_serial_number = 0
         # what to do to the schedule in case of pre-processing failure: none, postpone, delete
         failure_measure_to_take = "none"
-        # if the instruction is to move the crawler to a position
+        # if the instruction is about starting the crawler, change the contents of the instruction to the directions
+        # it should be moving
         if "move_crawler_to" in processed_instruction:
             processed_instruction = calculate_crawler_path(processed_instruction)
             if processed_instruction == "crawler unavailable":
@@ -85,6 +85,8 @@ def prepare_to_send_instructions(serial_number):
 
 
 # get instruction message from the scheduler and calculate the crawler's path
+# used in "def instruction_pre_processing" inside "prepare_to_send_instructions" because it modifies the instruction
+# to be sent to the crawler.
 def calculate_crawler_path(instruction):
     destination_y = int(instruction[16])
     destination_x = int(instruction[18])
@@ -108,7 +110,7 @@ def apply_frame_processing_type(result):
         # elif frame['frame_type'] == "placeholder":
 
 
-# process temperature and humidity frames
+#  log received data into database(mostly sensor data)
 def log_into_database(frame):
     execute_query("INSERT INTO " + frame['frame_type'] + " (serial_number, value, timestamp) "
                                                          "VALUES(" + str(frame['serial_number'])
@@ -117,23 +119,28 @@ def log_into_database(frame):
 
 
 # Socket Server
+# Receives a message and send a response
 async def receiver(websocket, path):
     global frames_result
     frames_receive = (await websocket.recv())
     frames_result = ujson.loads(frames_receive)
+    instruction_to_send = ""
+
     # if there's only one message, create a list with one element
     if not isinstance(frames_result, list):
         temp_list = [frames_result]
         frames_result = temp_list
 
+    # if the received frame is meant to trigger an action
     if frames_result not in ["", None]:
         apply_frame_processing_type(frames_result)
 
-    instruction_to_send = ""
+    # if the device that sent the frame has an instruction waiting to be sent back
     if int(frames_result[0]['serial_number']) in device_has_pending_instructions:
         instruction_to_send = prepare_to_send_instructions(frames_result[0]['serial_number'])
         frames_result = []
 
+    # send back a message to the device, whether it contains a instruction or not
     await websocket.send(instruction_to_send)
 
 
@@ -212,7 +219,7 @@ api_server.start()
 thread_scheduler = threading.Thread(target=scheduler, args=())
 thread_scheduler.start()
 
-# temporary, test purposes
+# temporary, for test purposes
 # dd = pathfinding.PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
 # dd = pathfinding.PathFinding({"y": 1, "x": 1})
 # dd.a_star_start()
