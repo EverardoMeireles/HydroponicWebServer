@@ -146,7 +146,7 @@ async def receiver(websocket, path):
 # Socket Server thread
 def thread_socket_server():
     asyncio.set_event_loop(asyncio.new_event_loop())
-    start_server = websockets.serve(receiver, "192.168.1.8", 5153)
+    start_server = websockets.serve(receiver, config.get("Thread", "socket_ip"), config.getint("Thread", "socket_port"))
     asyncio.get_event_loop().run_until_complete(start_server)
     asyncio.get_event_loop().run_forever()
     api.run()
