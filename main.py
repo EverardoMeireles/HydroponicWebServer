@@ -100,8 +100,8 @@ def calculate_crawler_path(instruction):
     return instruction_to_send
 
 
-# apply processing type based on the type of frame
-def apply_frame_processing_type(result):
+# apply processing type based on the type of frame when the frame is supposed to trigger an action
+def apply_processing_according_to_frame_type(result):
     for frame in result:
         # log into database(sensor data)
         if frame['frame_type'] in ["temperature", "humidity"]:
@@ -133,7 +133,7 @@ async def receiver(websocket, path):
 
     # if the received frame is meant to trigger an action
     if frames_result not in ["", None]:
-        apply_frame_processing_type(frames_result)
+        apply_processing_according_to_frame_type(frames_result)
 
     # if the device that sent the frame has an instruction waiting to be sent back
     if int(frames_result[0]['serial_number']) in device_has_pending_instructions:
@@ -153,7 +153,7 @@ def thread_socket_server():
     api.run()
 
 
-def rest_api_server():
+def thread_rest_api_server():
     if __name__ == '__main__':
         api.run(host="0.0.0.0", port=5154, debug=False)
 
@@ -165,7 +165,7 @@ if config.getboolean("Main", "scheduler_optimization"):
                                                "FROM schedule")[0]['MIN(schedule_timestamp)']
 
 
-def scheduler():
+def thread_scheduler():
     global schedule_list
     global minimum_schedule_timestamp
     while True:
@@ -213,10 +213,10 @@ def scheduler():
 thread_server = threading.Thread(target=thread_socket_server, args=())
 thread_server.start()
 
-api_server = threading.Thread(target=rest_api_server, args=())
+api_server = threading.Thread(target=thread_rest_api_server, args=())
 api_server.start()
 
-thread_scheduler = threading.Thread(target=scheduler, args=())
+thread_scheduler = threading.Thread(target=thread_scheduler, args=())
 thread_scheduler.start()
 
 # temporary, for test purposes
