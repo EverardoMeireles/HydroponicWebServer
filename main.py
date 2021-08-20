@@ -43,7 +43,7 @@ def prepare_to_send_instructions(serial_number):
 
     # pre-processing of the instruction to be sent according to its type
     def instruction_pre_processing(instruction):
-        processed_instruction = instruction
+        processed_instruction = instruction  # is this necessary????
         passed = True
         new_device_serial_number = 0
         # what to do to the schedule in case of pre-processing failure: none, postpone, delete
@@ -128,8 +128,7 @@ async def receiver(websocket, path):
 
     # if there's only one message, create a list with one element
     if not isinstance(frames_result, list):
-        temp_list = [frames_result]
-        frames_result = temp_list
+        frames_result = [frames_result]
 
     # if the received frame is meant to trigger an action
     if frames_result not in ["", None]:
@@ -201,10 +200,10 @@ def thread_scheduler():
                                               result['type'],
                                               int(ts)))
 
-            for result in results:
                 if result['to_delete'] == 'TRUE':
+                    print(result)
                     execute_query("DELETE FROM schedule WHERE schedule_timestamp = " + str(int(ts)) +
-                                  " AND schedule_id = " + str(result['scheduleId']) + ";")
+                                  " AND schedule_Id = " + str(result['schedule_Id']) + ";")
 
             minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0][
                 'MIN(schedule_timestamp)']
