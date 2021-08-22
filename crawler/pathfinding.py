@@ -172,8 +172,8 @@ class PathFinding:
         return raw_directions
 
     def add_crawler_rotation(self, raw_directions):
-        directions_with_rotations = []
         previous_direction = raw_directions[0]
+        directions_with_rotations = ["rotate-" + previous_direction]
         for direction in raw_directions:
             if direction != previous_direction:
                 directions_with_rotations.append(("rotate-" + direction))
@@ -210,6 +210,17 @@ class PathFinding:
 
         return False
 
+    def replace_directions_with_forward_motion(self, directions_to_replace):
+        string_replace_to = "forward"
+        directions = []
+        for final_direction in directions_to_replace:
+            if final_direction in ["left", "up", "right", "down"]:
+                final_direction = string_replace_to
+
+            directions.append(final_direction)
+
+        return directions
+
     def a_star_start(self):
         run_again = True
         while run_again:
@@ -228,7 +239,9 @@ class PathFinding:
             self.apply_weights()
             self.trace_backwards_path()
             raw_directions = self.determine_raw_directions()
-            self.final_directions = self.add_crawler_rotation(raw_directions)
+
+            self.final_directions = self.replace_directions_with_forward_motion(
+                self.add_crawler_rotation(raw_directions))
             # if the crawler collides with another crawler, mark this spot as blocked and rerun the pathfinding
             run_again = self.check_for_collisions()
         print(self.direction_coordinates)
