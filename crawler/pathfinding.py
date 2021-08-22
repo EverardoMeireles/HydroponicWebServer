@@ -7,15 +7,16 @@ from utils.config import room_map
 
 class PathFinding:
     # 2d array where the G cost, H cost, F cost and status will be stored.
-    def __init__(self, room_destination):
-        self.current_crawler = self.select_crawler_to_move()
-        try:
-            self.room_starting_position = {"y": self.current_crawler["resting_position_y"],
-                                           "x": self.current_crawler["resting_position_x"]}
-        except TypeError:
-            self.room_starting_position = {}
+    def __init__(self, room_starting_position, room_destination):
+        #self.current_crawler = self.select_crawler_to_move()
+        # try:
+        #     self.room_starting_position = {"y": self.current_crawler["resting_position_y"],
+        #                                    "x": self.current_crawler["resting_position_x"]}
+        # except TypeError:
+        #     self.room_starting_position = {}
 
         self.room_destination = room_destination
+        self.room_starting_position = room_starting_position
         # set starting node to be opened
         self.current_position = self.room_starting_position
         self.node_list = []
@@ -183,14 +184,14 @@ class PathFinding:
             previous_direction = direction
         return directions_with_rotations
 
-    # randomly selects the crawler to move from available crawlers
-    def select_crawler_to_move(self):
-        list_of_available_crawlers = select_crawler({"status": "available"})
-        try:
-            return list_of_available_crawlers[random.randint(0, len(list_of_available_crawlers) - 1)]
-        except ValueError:
-            # if there are no available crawlers
-            return "crawler unavailable"
+    # # randomly selects the crawler to move from available crawlers
+    # def select_crawler_to_move(self):
+    #     list_of_available_crawlers = select_crawler({"status": "available"})
+    #     try:
+    #         return list_of_available_crawlers[random.randint(0, len(list_of_available_crawlers) - 1)]
+    #     except ValueError:
+    #         # if there are no available crawlers
+    #         return "crawler unavailable"
 
     # check if the current crawler will collide with one of the crawlers already moving
     def check_for_collisions(self):
@@ -247,7 +248,7 @@ class PathFinding:
         print(self.direction_coordinates)
         ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
         ts = int(ct.timestamp())
-        update_crawler(self.current_crawler["serial_number"], {"status": "moving",
-                                                               "time_started_moving": ts,
-                                                               "coordinates": self.direction_coordinates})
+        # update_crawler(self.current_crawler["serial_number"], {"status": "moving",
+        #                                                        "time_started_moving": ts,
+        #                                                        "coordinates": self.direction_coordinates})
         print("the end")

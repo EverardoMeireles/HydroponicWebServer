@@ -15,6 +15,10 @@ import re
 import ujson
 from utils.database import execute_query
 from utils.config import config
+from utils.database import select_crawler, update_crawler
+import random
+import ast
+
 
 # frames_receive = []
 api = Flask(__name__)
@@ -43,6 +47,7 @@ def prepare_to_send_instructions(serial_number):
 
     # pre-processing of the instruction to be sent according to its type
     def instruction_pre_processing(instruction):
+        instruction_dict = ast.literal_eval(instruction)
         processed_instruction = instruction  # is this necessary????
         passed = True
         new_device_serial_number = 0
@@ -50,7 +55,7 @@ def prepare_to_send_instructions(serial_number):
         failure_measure_to_take = "none"
         # if the instruction is about starting the crawler, change the contents of the instruction to the directions
         # it should be moving
-        if "move_crawler_to" in processed_instruction:
+        if instruction_dict['instruction'] == "move_crawler_to":
             processed_instruction = calculate_crawler_path(processed_instruction)
             if processed_instruction == "crawler unavailable":
                 passed = False
@@ -61,6 +66,7 @@ def prepare_to_send_instructions(serial_number):
 
     # if there are no instructions for this device "" will be sent
     instruction_to_send = ""
+
     for schedule in schedule_list:
         instruction_to_send, processing_passed, measure, new_serial_number = instruction_pre_processing(schedule.instruction)
         # change schedule's serial_number to the serial_number of the chosen crawler
@@ -68,7 +74,7 @@ def prepare_to_send_instructions(serial_number):
             schedule.serial_number = new_serial_number
             serial_number = new_serial_number
         if schedule.serial_number == serial_number:
-            if processing_passed is True or measure == "delete":
+            if measure == "none" or measure == "delete":
                 schedule_list.pop(schedule_list.index(schedule))
 
             break
@@ -87,15 +93,33 @@ def prepare_to_send_instructions(serial_number):
 # get instruction message from the scheduler and calculate the crawler's path
 # used in "def instruction_pre_processing" inside "prepare_to_send_instructions" because it modifies the instruction
 # to be sent to the crawler.
+
+# randomly selects the crawler to move from available crawlers
+def select_crawler_to_move():
+    list_of_available_crawlers = select_crawler({"status": "available"})
+    try:
+        return list_of_available_crawlers[random.randint(0, len(list_of_available_crawlers) - 1)]
+    except ValueError:
+        # if there are no available crawlers
+        return "crawler unavailable"
+
+
 def calculate_crawler_path(instruction):
-    destination_y = int(instruction[16])
-    destination_x = int(instruction[18])
-    path = PathFinding({"y": destination_y, "x": destination_x})
-    if path.current_crawler != "crawler unavailable":
-        path.a_star_start()
-        instruction_to_send = "PATH: " + " ".join(path.final_directions)
-    else:
-        instruction_to_send = path.current_crawler
+    current_crawler = select_crawler_to_move()
+    instruction_dict = ast.literal_eval(instruction)
+    destination_y = instruction_dict['position_y']
+    destination_x = instruction_dict['position_x']
+    starting_position = {"y": current_crawler["resting_position_y"], "x": current_crawler["resting_position_x"]}
+    destination = {"y": destination_y, "x": destination_x}
+    path = PathFinding(destination, starting_position)
+    path.a_star_start()
+    ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
+    ts = int(ct.timestamp())
+    update_crawler(current_crawler["serial_number"], {"status": "moving",
+                                                      "time_started_moving": ts,
+                                                      "coordinates": path.direction_coordinates})
+    instruction_to_send = str({"path": path.final_directions})
+
     print(instruction_to_send)
     return instruction_to_send
 
@@ -219,6 +243,6 @@ thread_scheduler = threading.Thread(target=thread_scheduler, args=())
 thread_scheduler.start()
 
 # temporary, for test purposes
-# dd = pathfinding.PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
-# dd = pathfinding.PathFinding({"y": 1, "x": 1})
+# dd = PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
+# dd = PathFinding({"y": 1, "x": 1})
 # dd.a_star_start()

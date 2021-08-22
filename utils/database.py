@@ -8,11 +8,15 @@ DATABASE = config.get("Database", "db_path")
 if config.getboolean("Database", "db_optimization") is not True:
     connection = sqlite3.connect(DATABASE, check_same_thread=False)
 
+# only commit after n uncommitted changes
 db_uncommitted_count = 0
-# only commit after 100 uncommitted changes
 
-with open('crawler/crawlers.json', 'r') as json_file:
-    list_of_crawlers = ujson.load(json_file)
+
+def update_local_list_of_crawlers():
+    with open('crawler/crawlers.json', 'r') as json_file:
+        crawlers = ujson.load(json_file)
+
+    return crawlers
 
 
 def execute_query(query):
@@ -46,6 +50,7 @@ def execute_query(query):
 
 # takes dictionary
 def select_crawler(condition):
+    list_of_crawlers = update_local_list_of_crawlers()
     crawlers_to_return = []
     for crawler in list_of_crawlers:
         for value in sorted(condition):
@@ -55,6 +60,7 @@ def select_crawler(condition):
 
 
 def update_crawler(serial_number, updated_values):
+    list_of_crawlers = update_local_list_of_crawlers()
     for crawler in list_of_crawlers:
         if crawler['serial_number'] == serial_number:
             for value in sorted(updated_values):
@@ -63,5 +69,6 @@ def update_crawler(serial_number, updated_values):
 
 
 def save_crawler():
+    list_of_crawlers = update_local_list_of_crawlers()
     with open('crawler/crawlers.json', 'w') as json_file:
         ujson.dump(list_of_crawlers, json_file)
