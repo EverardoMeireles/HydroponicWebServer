@@ -10,13 +10,11 @@ if config.getboolean("Database", "db_optimization") is not True:
 
 # only commit after n uncommitted changes
 db_uncommitted_count = 0
+list_of_crawlers = []
 
-
-def update_local_list_of_crawlers():
-    with open('crawler/crawlers.json', 'r') as json_file:
-        crawlers = ujson.load(json_file)
-
-    return crawlers
+with open('crawler/crawlers.json', 'r') as json_file:
+    list_of_crawlers = ujson.load(json_file)
+    json_file.close()
 
 
 def execute_query(query):
@@ -50,7 +48,8 @@ def execute_query(query):
 
 # takes dictionary
 def select_crawler(condition):
-    list_of_crawlers = update_local_list_of_crawlers()
+    global list_of_crawlers
+    # list_of_crawlers = update_local_list_of_crawlers()
     crawlers_to_return = []
     for crawler in list_of_crawlers:
         for value in sorted(condition):
@@ -60,15 +59,20 @@ def select_crawler(condition):
 
 
 def update_crawler(serial_number, updated_values):
-    list_of_crawlers = update_local_list_of_crawlers()
-    for crawler in list_of_crawlers:
-        if crawler['serial_number'] == serial_number:
-            for value in sorted(updated_values):
-                crawler[value] = updated_values[value]
-            break
+    global list_of_crawlers
+    # list_of_crawlers = update_local_list_of_crawlers()
+    print("serial_number:" + str(serial_number))
+    selected_crawler = next(item for item in list_of_crawlers if item['serial_number'] == serial_number)
+    for value in sorted(updated_values):
+        selected_crawler[value] = updated_values[value]
+
+    # break
+    save_crawlers_file()
 
 
-def save_crawler():
-    list_of_crawlers = update_local_list_of_crawlers()
+def save_crawlers_file():
+    global list_of_crawlers
+    # list_of_crawlers = update_local_list_of_crawlers()
     with open('crawler/crawlers.json', 'w') as json_file:
-        ujson.dump(list_of_crawlers, json_file)
+        ujson.dump(list_of_crawlers, json_file, indent=4, sort_keys=True)
+    json_file.close()
