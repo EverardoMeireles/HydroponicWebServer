@@ -15,7 +15,7 @@ import re
 import ujson
 from utils.database import execute_query
 from utils.config import config
-from utils.database import select_crawler, update_crawler
+from utils.database import select_crawler, update_crawler, update_local_list_of_crawlers
 import random
 import ast
 
@@ -40,44 +40,41 @@ def get_all():
     return ujson.dumps(frames_result)
 
 
+# pre-processing of the instruction to be sent according to its type
+def process_instruction_before_sending(instruction):
+    instruction_dict = ast.literal_eval(instruction)
+    processed_instruction = instruction  # is this necessary????
+    # what to do to the schedule in case of pre-processing failure: none, postpone, delete
+    postpone = False
+    # if the instruction is about starting the crawler, change the contents of the instruction to the directions
+    # it should be moving
+    if instruction_dict['instruction'] == "move_crawler_to":
+        processed_instruction = calculate_crawler_path(processed_instruction)
+        if processed_instruction == "no crawler unavailable":
+            postpone = True
+    # elif
+
+    return processed_instruction, postpone
+
+
 # prepare to send instruction message to the device that sent the server a message
 def prepare_to_send_instructions(serial_number):
     global device_has_pending_instructions
     global schedule_list
 
-    # pre-processing of the instruction to be sent according to its type
-    def instruction_pre_processing(instruction):
-        instruction_dict = ast.literal_eval(instruction)
-        processed_instruction = instruction  # is this necessary????
-        passed = True
-        new_device_serial_number = 0
-        # what to do to the schedule in case of pre-processing failure: none, postpone, delete
-        failure_measure_to_take = "none"
-        # if the instruction is about starting the crawler, change the contents of the instruction to the directions
-        # it should be moving
-        if instruction_dict['instruction'] == "move_crawler_to":
-            processed_instruction = calculate_crawler_path(processed_instruction)
-            if processed_instruction == "crawler unavailable":
-                passed = False
-                failure_measure_to_take = "postpone"
-        # elif
-
-        return processed_instruction, passed, failure_measure_to_take, new_device_serial_number
-
     # if there are no instructions for this device "" will be sent
     instruction_to_send = ""
 
     for schedule in schedule_list:
-        instruction_to_send, processing_passed, measure, new_serial_number = instruction_pre_processing(schedule.instruction)
-        # change schedule's serial_number to the serial_number of the chosen crawler
-        if new_serial_number != 0 and config.getboolean("Main", "crawler_debug"):
-            schedule.serial_number = new_serial_number
-            serial_number = new_serial_number
+        instruction_to_send, postpone_sending_instruction = process_instruction_before_sending(schedule.instruction)
         if schedule.serial_number == serial_number:
-            if measure == "none" or measure == "delete":
+            if postpone_sending_instruction:
+                print("instruction postponed")
+                instruction_to_send = ""
+                schedule_list[schedule_list.index(schedule)].postponed = True
+            else:
                 schedule_list.pop(schedule_list.index(schedule))
-
-            break
+                break
 
     schedules_counter = 0
     for schedule in schedule_list:
@@ -86,32 +83,33 @@ def prepare_to_send_instructions(serial_number):
 
     if schedules_counter == 0:
         device_has_pending_instructions.pop(device_has_pending_instructions.index(serial_number))
-
+    # amanha as 1530
     return instruction_to_send
 
 
-# get instruction message from the scheduler and calculate the crawler's path
-# used in "def instruction_pre_processing" inside "prepare_to_send_instructions" because it modifies the instruction
-# to be sent to the crawler.
-
 # randomly selects the crawler to move from available crawlers
 def select_crawler_to_move():
+    update_local_list_of_crawlers()
     list_of_available_crawlers = select_crawler({"status": "available"})
+    print(list_of_available_crawlers)
     try:
         return list_of_available_crawlers[random.randint(0, len(list_of_available_crawlers) - 1)]
     except ValueError:
         # if there are no available crawlers
-        return "crawler unavailable"
+        return "no crawler unavailable"
 
 
+# get instruction message from the scheduler and calculate the crawler's path
+# used in process_instruction_before_sending(serial_number)
 def calculate_crawler_path(instruction):
     current_crawler = select_crawler_to_move()
+    if current_crawler == "no crawler unavailable":
+        return current_crawler
+
     instruction_dict = ast.literal_eval(instruction)
-    destination_y = instruction_dict['position_y']
-    destination_x = instruction_dict['position_x']
     starting_position = {"y": current_crawler["resting_position_y"], "x": current_crawler["resting_position_x"]}
-    destination = {"y": destination_y, "x": destination_x}
-    path = PathFinding(destination, starting_position)
+    destination = {"y": instruction_dict['destination_y'], "x": instruction_dict['destination_x']}
+    path = PathFinding(starting_position, destination)
     path.a_star_start()
     ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
     ts = int(ct.timestamp())
@@ -124,22 +122,22 @@ def calculate_crawler_path(instruction):
     return instruction_to_send
 
 
-# apply processing type based on the type of frame when the frame is supposed to trigger an action
-def apply_processing_according_to_frame_type(result):
-    for frame in result:
-        # log into database(sensor data)
-        if frame['frame_type'] in ["temperature", "humidity"]:
-            log_into_database(frame)
-
-        # elif frame['frame_type'] == "placeholder":
-
-
 #  log received data into database(mostly sensor data)
 def log_into_database(frame):
     execute_query("INSERT INTO " + frame['frame_type'] + " (serial_number, value, timestamp) "
                                                          "VALUES(" + str(frame['serial_number'])
                   + ", " + str(int(frame['value'])) + ", "
                   + str(int(datetime.datetime.now(pytz.timezone('Europe/Berlin')).timestamp())) + ");")
+
+
+# apply processing type based on the type of frame when the frame is supposed to trigger an action
+def process_received_instructions(result):
+    for frame in result:
+        # log into database(sensor data)
+        if frame['frame_type'] in ["temperature", "humidity"]:
+            log_into_database(frame)
+
+        # elif
 
 
 # Socket Server
@@ -154,9 +152,9 @@ async def receiver(websocket, path):
     if not isinstance(frames_result, list):
         frames_result = [frames_result]
 
-    # if the received frame is meant to trigger an action
+    # process the instruction to change it or to trigger an action
     if frames_result not in ["", None]:
-        apply_processing_according_to_frame_type(frames_result)
+        process_received_instructions(frames_result)
 
     # if the device that sent the frame has an instruction waiting to be sent back
     if int(frames_result[0]['serial_number']) in device_has_pending_instructions:
@@ -221,6 +219,7 @@ def thread_scheduler():
                 schedule_list.append(Schedule(result['serial_number'],
                                               result['instruction'],
                                               result['to_delete'],
+                                              False,  # postpone
                                               result['type'],
                                               int(ts)))
 
