@@ -69,11 +69,13 @@ def update_crawler(serial_number, updated_values):
     # break
     save_crawlers_file()
 
+
 def update_local_list_of_crawlers():
     global list_of_crawlers
     with open('crawler/crawlers.json', 'r') as json_file:
         list_of_crawlers = ujson.load(json_file)
         json_file.close()
+
 
 def save_crawlers_file():
     global list_of_crawlers

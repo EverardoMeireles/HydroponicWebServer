@@ -184,15 +184,6 @@ class PathFinding:
             previous_direction = direction
         return directions_with_rotations
 
-    # # randomly selects the crawler to move from available crawlers
-    # def select_crawler_to_move(self):
-    #     list_of_available_crawlers = select_crawler({"status": "available"})
-    #     try:
-    #         return list_of_available_crawlers[random.randint(0, len(list_of_available_crawlers) - 1)]
-    #     except ValueError:
-    #         # if there are no available crawlers
-    #         return "crawler unavailable"
-
     # check if the current crawler will collide with one of the crawlers already moving
     def check_for_collisions(self):
         current_crawler_coordinates = self.direction_coordinates
@@ -246,9 +237,4 @@ class PathFinding:
             # if the crawler collides with another crawler, mark this spot as blocked and rerun the pathfinding
             run_again = self.check_for_collisions()
         print(self.direction_coordinates)
-        ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
-        ts = int(ct.timestamp())
-        # update_crawler(self.current_crawler["serial_number"], {"status": "moving",
-        #                                                        "time_started_moving": ts,
-        #                                                        "coordinates": self.direction_coordinates})
         print("the end")

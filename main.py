@@ -30,7 +30,7 @@ device_has_pending_instructions = []
 
 if config.getboolean("Main", "start_with_profiler"):
     pid = os.getpid()
-    os.system("profiler.bat " + str(pid))
+    os.system("cd utils && profiler.bat " + str(pid))
 
 
 @api.route('/all', methods=['GET'])
@@ -41,20 +41,23 @@ def get_all():
 
 
 # pre-processing of the instruction to be sent according to its type
-def process_instruction_before_sending(instruction):
-    instruction_dict = ast.literal_eval(instruction)
-    processed_instruction = instruction  # is this necessary????
-    # what to do to the schedule in case of pre-processing failure: none, postpone, delete
+def process_instruction_before_sending(instructions):
+    instruction_dicts = ast.literal_eval(instructions)
+    processed_instructions = []  #instructions  # is this necessary????
     postpone = False
     # if the instruction is about starting the crawler, change the contents of the instruction to the directions
     # it should be moving
-    if instruction_dict['instruction'] == "move_crawler_to":
-        processed_instruction = calculate_crawler_path(processed_instruction)
-        if processed_instruction == "no crawler unavailable":
-            postpone = True
-    # elif
+    for instruction_item in instruction_dicts:
+        next_instruction = ujson.dumps(instruction_item)
+        if instruction_item['instruction_type'] == "move_crawler_to":
+            next_instruction = calculate_crawler_path(ujson.dumps(instruction_item))
+            if next_instruction == "no crawler unavailable":
+                postpone = True
+                break
 
-    return processed_instruction, postpone
+        processed_instructions.append(ujson.loads(next_instruction))
+
+    return ujson.dumps(processed_instructions), postpone
 
 
 # prepare to send instruction message to the device that sent the server a message
@@ -66,8 +69,8 @@ def prepare_to_send_instructions(serial_number):
     instruction_to_send = ""
 
     for schedule in schedule_list:
-        instruction_to_send, postpone_sending_instruction = process_instruction_before_sending(schedule.instruction)
         if schedule.serial_number == serial_number:
+            instruction_to_send, postpone_sending_instruction = process_instruction_before_sending(schedule.instruction)
             if postpone_sending_instruction:
                 print("instruction postponed")
                 instruction_to_send = ""
@@ -83,7 +86,7 @@ def prepare_to_send_instructions(serial_number):
 
     if schedules_counter == 0:
         device_has_pending_instructions.pop(device_has_pending_instructions.index(serial_number))
-    # amanha as 1530
+
     return instruction_to_send
 
 
@@ -116,7 +119,7 @@ def calculate_crawler_path(instruction):
     update_crawler(current_crawler["serial_number"], {"status": "moving",
                                                       "time_started_moving": ts,
                                                       "coordinates": path.direction_coordinates})
-    instruction_to_send = str({"path": path.final_directions})
+    instruction_to_send = ujson.dumps({"path": path.final_directions})
 
     print(instruction_to_send)
     return instruction_to_send
@@ -124,7 +127,7 @@ def calculate_crawler_path(instruction):
 
 #  log received data into database(mostly sensor data)
 def log_into_database(frame):
-    execute_query("INSERT INTO " + frame['frame_type'] + " (serial_number, value, timestamp) "
+    execute_query("INSERT INTO " + frame['instruction_type'] + " (serial_number, value, timestamp) "
                                                          "VALUES(" + str(frame['serial_number'])
                   + ", " + str(int(frame['value'])) + ", "
                   + str(int(datetime.datetime.now(pytz.timezone('Europe/Berlin')).timestamp())) + ");")
@@ -134,7 +137,7 @@ def log_into_database(frame):
 def process_received_instructions(result):
     for frame in result:
         # log into database(sensor data)
-        if frame['frame_type'] in ["temperature", "humidity"]:
+        if frame['instruction_type'] in ["temperature", "humidity"]:
             log_into_database(frame)
 
         # elif
