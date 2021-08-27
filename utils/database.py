@@ -49,7 +49,9 @@ def execute_query(query):
 # takes dictionary
 def select_crawler(condition):
     global list_of_crawlers
-    # list_of_crawlers = update_local_list_of_crawlers()
+    if not isinstance(list_of_crawlers, list):
+        list_of_crawlers = [list_of_crawlers]
+
     crawlers_to_return = []
     for crawler in list_of_crawlers:
         for value in sorted(condition):

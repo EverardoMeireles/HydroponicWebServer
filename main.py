@@ -94,7 +94,6 @@ def prepare_to_send_instructions(serial_number):
 def select_crawler_to_move():
     update_local_list_of_crawlers()
     list_of_available_crawlers = select_crawler({"status": "available"})
-    print(list_of_available_crawlers)
     try:
         return list_of_available_crawlers[random.randint(0, len(list_of_available_crawlers) - 1)]
     except ValueError:
@@ -235,14 +234,15 @@ def thread_scheduler():
                 'MIN(schedule_timestamp)']
 
 
-thread_server = threading.Thread(target=thread_socket_server, args=())
-thread_server.start()
+if __name__ == '__main__':
+    thread_server = threading.Thread(target=thread_socket_server, args=())
+    thread_server.start()
 
-api_server = threading.Thread(target=thread_rest_api_server, args=())
-api_server.start()
+    api_server = threading.Thread(target=thread_rest_api_server, args=())
+    api_server.start()
 
-thread_scheduler = threading.Thread(target=thread_scheduler, args=())
-thread_scheduler.start()
+    thread_scheduler = threading.Thread(target=thread_scheduler, args=())
+    thread_scheduler.start()
 
 # temporary, for test purposes
 # dd = PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
