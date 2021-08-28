@@ -16,12 +16,19 @@ if config.getboolean("Main", "start_with_profiler"):
 
 api = Flask(__name__)
 
+frames_result = []
+
 
 @api.route('/all', methods=['GET'])
 # get all sensor information
 def get_all():
     print(frames_result)
     return ujson.dumps(frames_result)
+
+
+def thread_rest_api_server():
+    if __name__ == '__main__':
+        api.run(host="0.0.0.0", port=5154, debug=False)
 
 
 # Socket Server
@@ -58,11 +65,6 @@ def thread_socket_server():
     api.run()
 
 
-def thread_rest_api_server():
-    if __name__ == '__main__':
-        api.run(host="0.0.0.0", port=5154, debug=False)
-
-
 # if scheduler_optimization is True on config.ini, makes code execution faster but makes
 # modifying database on the fly impossible, difficult to debug.
 if config.getboolean("Main", "scheduler_optimization"):
@@ -71,7 +73,6 @@ if config.getboolean("Main", "scheduler_optimization"):
 
 
 def thread_scheduler():
-    global schedule_list
     global minimum_schedule_timestamp
     while True:
         ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))

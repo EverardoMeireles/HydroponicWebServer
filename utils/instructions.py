@@ -8,7 +8,6 @@ from utils.database import select_crawler, update_crawler, update_local_list_of_
 import random
 import ast
 
-frames_result = []
 schedule_list = []
 device_has_pending_instructions = []
 
@@ -55,7 +54,6 @@ def prepare_to_send_instructions(serial_number):
     schedules_counter = 0
     for schedule in schedule_list:
         if schedule is not None and schedule.serial_number == serial_number:
-            print(schedule.serial_number)
             schedules_counter += 1
 
     if schedules_counter == 0:
