@@ -89,8 +89,9 @@ def thread_scheduler():
                                                        "FROM schedule")[0]['MIN(schedule_timestamp)']
 
         if minimum_schedule_timestamp == int(ts):
-            results = execute_query("SELECT serial_number, instruction, to_delete, type, schedule_id "
-                                    "FROM schedule WHERE schedule_timestamp = " + str(int(ts)) + ";")
+            results = execute_query("SELECT serial_number, instruction, to_delete, type, schedule_id,"
+                                    " re_insertion_time_seconds " "FROM schedule WHERE schedule_timestamp"
+                                    " = " + str(int(ts)) + ";")
 
             if len(results) > 1:
                 for result in results:
@@ -106,15 +107,21 @@ def thread_scheduler():
                                               result['to_delete'],
                                               False,  # postpone
                                               result['type'],
-                                              int(ts)))
+                                              int(ts),
+                                     result['re_insertion_time_seconds']))
 
+                minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0][
+                    'MIN(schedule_timestamp)']
+
+                # if its just a one time schedule, delete it, if not, add more seconds to the timestamp to repeat it.
                 if result['to_delete'] == 'TRUE':
                     print(result)
                     execute_query("DELETE FROM schedule WHERE schedule_timestamp = " + str(int(ts)) +
                                   " AND schedule_Id = " + str(result['schedule_Id']) + ";")
-
-            minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) FROM schedule")[0][
-                'MIN(schedule_timestamp)']
+                else:
+                    execute_query("UPDATE schedule SET schedule_timestamp = "
+                                  + str(int((ts + result['re_insertion_time_seconds'])))
+                                  + " WHERE schedule_timestamp = " + str(int(ts)) + ";")
 
 
 if __name__ == '__main__':

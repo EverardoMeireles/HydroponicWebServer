@@ -190,15 +190,21 @@ class PathFinding:
         list_of_moving_crawlers = select_crawler({"status": "moving"})
         ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
         ts = int(ct.timestamp())
-        for current_coordinate in current_crawler_coordinates:
-            for moving_crawler in list_of_moving_crawlers:
-                timestamp_counter = 0
-                for moving_coordinate in moving_crawler["coordinates"]:
-                    if current_coordinate == moving_coordinate and (ts + timestamp_counter) == \
-                            (moving_crawler["time_started_moving"] + timestamp_counter):
-                        self.room_map[moving_coordinate[0]][moving_coordinate[1]] = "Z"
+        for moving_crawler in list_of_moving_crawlers:
+            inters = []
+            # if the current crawler and one of the moving crawlers has positions in common
+            for current_crawler_coordinate in current_crawler_coordinates:
+                if current_crawler_coordinate in moving_crawler["coordinates"]:
+                    inters.append(current_crawler_coordinate)
+
+            if inters:
+                for inter in inters:
+                    index_current = current_crawler_coordinates.index(inter)
+                    index_moving = moving_crawler["coordinates"].index(inter)
+                    if (ts + index_current) == (moving_crawler["time_started_moving"] + index_moving):
+                        self.room_map[inter[0]][inter[1]] = "Z"
+                        print("collision detected")
                         return True
-                    timestamp_counter += 1
 
         return False
 
