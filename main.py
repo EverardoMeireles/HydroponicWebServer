@@ -37,7 +37,7 @@ async def receiver(websocket, path):
     global frames_result
     frames_receive = (await websocket.recv())
     frames_result = ujson.loads(frames_receive)
-    instruction_to_send = ""
+    instruction_to_send = "s"
 
     # if there's only one message, create a list with one element
     if not isinstance(frames_result, list):
@@ -50,11 +50,13 @@ async def receiver(websocket, path):
     # if the device that sent the frame has an instruction waiting to be sent back
     if int(frames_result[0]['serial_number']) in device_has_pending_instructions:
         instruction_to_send = prepare_to_send_instructions(frames_result[0]['serial_number'])
+        print("ENVIANDOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
         frames_result = []
 
     # send back a message to the device, whether it contains a instruction or not
+    print("MESSAGE:" + instruction_to_send)
     await websocket.send(instruction_to_send)
-
+    #await websocket.send('[["rotate-right","forward","forward","rotate-up","forward","forward","rotate-left","forward","rotate-up","forward","rotate-left","forward","rotate-up","forward"]]')
 
 # Socket Server thread
 def thread_socket_server():
@@ -84,6 +86,8 @@ def thread_scheduler():
             time.sleep(1 - (ts % 1))
 
         print(ts)
+        print(device_has_pending_instructions)
+        print(frames_result)
         if config.getboolean("Main", "scheduler_optimization") is not True:
             minimum_schedule_timestamp = execute_query("SELECT MIN(schedule_timestamp) "
                                                        "FROM schedule")[0]['MIN(schedule_timestamp)']

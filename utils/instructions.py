@@ -95,9 +95,11 @@ def calculate_crawler_path(instruction):
     ct = datetime.datetime.now(pytz.timezone('Europe/Berlin'))
     ts = int(ct.timestamp())
     update_crawler(current_crawler["serial_number"], {"status": "moving",
-                                                      "time_started_moving": ts, # plus time offset
+                                                      "time_started_moving": ts,  # plus time offset
                                                       "coordinates": path.direction_coordinates})
-    instruction_to_send = ujson.dumps({"path": path.final_directions})
+    # instruction_to_send = ujson.dumps({"path": path.final_directions})
+    instruction_to_send = ujson.dumps(path.final_directions)
+
 
     print(instruction_to_send)
     return instruction_to_send
