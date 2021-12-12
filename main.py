@@ -37,7 +37,7 @@ async def receiver(websocket, path):
     global frames_result
     frames_receive = (await websocket.recv())
     frames_result = ujson.loads(frames_receive)
-    instruction_to_send = "s"
+    instruction_to_send = "empty"
 
     # if there's only one message, create a list with one element
     if not isinstance(frames_result, list):
@@ -52,8 +52,9 @@ async def receiver(websocket, path):
         instruction_to_send = prepare_to_send_instructions(frames_result[0]['serial_number'])
         print("ENVIANDOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
         frames_result = []
-
     # send back a message to the device, whether it contains a instruction or not
+    # convert from string representation of list of strings to a simple string
+    instruction_to_send = instruction_to_send.replace("[", "").replace("]", "").replace('"', "")
     print("MESSAGE:" + instruction_to_send)
     await websocket.send(instruction_to_send)
     #await websocket.send('[["rotate-right","forward","forward","rotate-up","forward","forward","rotate-left","forward","rotate-up","forward","rotate-left","forward","rotate-up","forward"]]')
