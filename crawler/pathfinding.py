@@ -2,8 +2,9 @@ import datetime
 import random
 import pytz
 from utils.database import select_crawler, update_crawler
-from utils.config import room_map
+from utils.config import room_map, shelve_orientation
 
+crawler_resting_direction = "up"
 
 class PathFinding:
     # 2d array where the G cost, H cost, F cost and status will be stored.
@@ -172,17 +173,65 @@ class PathFinding:
         self.direction_coordinates.reverse()
         return raw_directions
 
-    def add_crawler_rotation(self, raw_directions):
-        previous_direction = raw_directions[0]
-        directions_with_rotations = ["rotate-" + previous_direction]
+    # def add_crawler_strafing(self, raw_directions):
+    #     def strafe_to_new_direction(current_direction, desired_direction):
+    #         new_directions = []
+    #         # crawler_current_direction = crawler_resting_direction
+    #         direction_dict = {
+    #             "up": 1,
+    #             "right": 2,
+    #             "down": 3,
+    #             "left": 4
+    #         }
+    #         # if the new direction is opposite to the current one(for example: left to right), move randomly to
+    #         # the left or to the right
+    #         if abs(direction_dict[current_direction] - direction_dict[desired_direction]) % 2 == 0:
+    #             initial_opposite_side_choice = random.choice(["left", "right"])
+    #             new_directions.append("strafe-" + initial_opposite_side_choice)
+    #             current_direction = initial_opposite_side_choice
+    #
+    #         # if rotating from up to left OR left to up, invert the values for direction value comparison
+    #         if current_direction in ["up", "left"] and desired_direction in ["up", "left"]:
+    #             left = "strafe-right"
+    #             right = "strafe-left"
+    #         else:
+    #             left = "strafe-left"
+    #             right = "strafe-right"
+    #
+    #         if direction_dict[desired_direction] < direction_dict[current_direction]:
+    #             new_directions.append(left)
+    #         else:
+    #             new_directions.append(right)
+    #
+    #         return new_directions
+    #
+    #     directions_with_rotations = []
+    #
+    #     previous_direction = crawler_resting_direction
+    #     for direction in raw_directions:
+    #         if direction != previous_direction:
+    #             directions_with_rotations.extend(strafe_to_new_direction(previous_direction, direction))
+    #             directions_with_rotations.append(direction)
+    #         else:
+    #             directions_with_rotations.append(direction)
+    #         previous_direction = direction
+    #
+    #     directions_with_rotations.append('rotate-face-' + shelve_orientation)
+    #     return directions_with_rotations
+
+    def add_servo_turning(self, raw_directions):
+        new_direction = ""
+        directions_with_servo_turns = []
+        previous_direction = ""
         for direction in raw_directions:
-            if direction != previous_direction:
-                directions_with_rotations.append(("rotate-" + direction))
-                directions_with_rotations.append(direction)
-            else:
-                directions_with_rotations.append(direction)
+            if direction is not previous_direction:
+                directions_with_servo_turns.append("servo-" + direction)
+
+            directions_with_servo_turns.append(direction)
             previous_direction = direction
-        return directions_with_rotations
+
+        directions_with_servo_turns.append('rotate-face-' + shelve_orientation)
+        return directions_with_servo_turns
 
     # check if the current crawler will collide with one of the crawlers already moving
     def check_for_collisions(self):
@@ -239,8 +288,13 @@ class PathFinding:
             raw_directions = self.determine_raw_directions()
 
             self.final_directions = self.replace_directions_with_forward_motion(
-                self.add_crawler_rotation(raw_directions))
-            # if the crawler collides with another crawler, mark this spot as blocked and rerun the pathfinding
+                self.add_servo_turning(raw_directions))
+            #self.add_crawler_strafing(raw_directions))
+
+            # add rotation so the crawler faces its objective
+            # self.final_directions = self.final_directions.append("rotate-face-" + shelve_orientation)
+            # if the crawler collides with another crawler, mark the collision spot as blocked and rerun the pathfinding
             run_again = self.check_for_collisions()
+        #self.final_directions = 'servo-right,forward,forward,rotate_face_left'
         print(self.direction_coordinates)
         print("the end")

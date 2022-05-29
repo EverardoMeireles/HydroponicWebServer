@@ -2,12 +2,24 @@
     {
         "coordinates": [
             [
-                5,
+                8,
                 1
             ],
             [
-                5,
+                8,
                 2
+            ],
+            [
+                8,
+                3
+            ],
+            [
+                7,
+                3
+            ],
+            [
+                6,
+                3
             ],
             [
                 5,
@@ -39,10 +51,10 @@
             ]
         ],
         "resting_position_x": 1,
-        "resting_position_y": 5,
+        "resting_position_y": 8,
         "serial_number": 2,
         "status": "moving",
-        "time_started_moving": 1639307076
+        "time_started_moving": 1653626556
     },
     {
         "coordinates": [
@@ -86,8 +98,8 @@
         "resting_position_x": 1,
         "resting_position_y": 5,
         "serial_number": 3,
-        "status": "available",
-        "time_started_moving": 1630357630
+        "status": "moving",
+        "time_started_moving": 1640804298
     },
     {
         "coordinates": [
@@ -127,7 +139,7 @@
         "resting_position_x": 2,
         "resting_position_y": 5,
         "serial_number": 4,
-        "status": "available",
+        "status": "moving",
         "time_started_moving": 1630357632
     },
     {
@@ -184,8 +196,8 @@
         "resting_position_x": 1,
         "resting_position_y": 8,
         "serial_number": 5,
-        "status": "available",
-        "time_started_moving": 1630357570
+        "status": "moving",
+        "time_started_moving": 1640804234
     },
     {
         "coordinates": [
@@ -241,7 +253,7 @@
         "resting_position_x": 1,
         "resting_position_y": 8,
         "serial_number": 6,
-        "status": "available",
-        "time_started_moving": 1630357633
+        "status": "moving",
+        "time_started_moving": 1640805135
     }
 ]

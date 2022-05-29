@@ -141,5 +141,5 @@ if __name__ == '__main__':
 
 # temporary, for test purposes
 # dd = PathFinding({"y": 8, "x": 1}, {"y": 1, "x": 1})
-# dd = PathFinding({"y": 1, "x": 1})
+#dd = PathFinding({"y": 1, "x": 1})
 # dd.a_star_start()
